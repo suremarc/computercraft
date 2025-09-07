@@ -145,7 +145,11 @@ end
 
 function getConversationId()
     -- First check mistral_conversation_id.txt
-    local f = fs.open('mistral_conversation_id.txt', 'r+')
+    local f, err = fs.open('mistral_conversation_id.txt', 'r+')
+    if err then
+        error("Error opening mistral_conversation_id.txt: " .. err)
+    end
+
     local id = f.readAll()
     if id and id ~= '' then
         f.close()
@@ -213,7 +217,7 @@ function getresp(user, msg)
                 json_schema = {
                     name = 'MinecraftTextComponent',
                     schema_definition = getTextComponentSchema(),
-                    strict = false
+                    strict = true
                 }
             },
         }
