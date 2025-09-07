@@ -1,6 +1,6 @@
 local DiscordHook = require 'DiscordHook'
 
-local TIMEOUT_SECS = 60 -- 15m
+local TIMEOUT_SECS = 60 -- 1m
 
 local chatBox = peripheral.wrap 'top'
 if not chatBox then
@@ -154,7 +154,7 @@ function getConversationId()
         end
     end
     -- If not found, create a new conversation
-    local body = textutils.serialiseJSON {
+    local body = textutils.serializeJSON {
         agent_id = 'ag:40c9ae76:20250906:untitled-agent:6d695194',
         inputs = textutils.serializeJSON {
             user = 'suremarc',
@@ -202,7 +202,7 @@ function getresp(user, msg)
         inputs = {
             {
                 role = 'user',
-                content = textutils.serializeJSON {
+                content = textutils.serialiseJSON {
                     user = user,
                     message = msg,
                 }
