@@ -146,13 +146,12 @@ end
 function getConversationId()
     -- First check mistral_conversation_id.txt
     local f = fs.open('mistral_conversation_id.txt', 'r+')
-    if f ~= nil then
-        local id = f.readAll()
-        if id and id ~= '' then
-            f.close()
-            return id
-        end
+    local id = f.readAll()
+    if id and id ~= '' then
+        f.close()
+        return id
     end
+
     -- If not found, create a new conversation
     local body = textutils.serializeJSON {
         agent_id = 'ag:40c9ae76:20250906:untitled-agent:6d695194',
