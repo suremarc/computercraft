@@ -201,11 +201,11 @@ end
 function getresp(user, msg)
     local conversationId = getConversationId()
 
-    local body = textutils.serialiseJSON {
+    local body = textutils.serializeJSON {
         inputs = {
             {
                 role = 'user',
-                content = textutils.serialiseJSON {
+                content = textutils.serializeJSON {
                     user = user,
                     message = msg,
                 }
