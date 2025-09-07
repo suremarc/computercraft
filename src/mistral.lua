@@ -289,7 +289,7 @@ function handleEvent(username, message, uuid, isHidden)
         print('<' .. username .. '>: ' .. message)
 
         local resp = getresp(username, message)
-        formattedMessage = textutils.serializeJSON(resp, { unicode_strings = true })
+        local formattedMessage = textutils.serializeJSON(resp, { unicode_strings = true })
         print(formattedMessage)
 
         if isHidden then
