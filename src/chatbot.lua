@@ -91,7 +91,7 @@ local Model = {
                     underlined = { ['type'] = { 'boolean', 'null' } },
                     strikethrough = { ['type'] = { 'boolean', 'null' } },
                     obfuscated = { ['type'] = { 'boolean', 'null' } },
-                    shadow_color = { ['type'] = { 'boolean', 'null' } },
+                    shadow_color = { ['type'] = { 'number', 'null' } },
                     insertion = { ['type'] = { 'string', 'null' } },
                     clickEvent = {
                         ['type'] = { 'object', 'null' },
