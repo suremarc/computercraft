@@ -358,7 +358,7 @@ function OpenAi:getReply(user, msg)
             format = {
                 ['type'] = 'json_schema',
                 name = 'MinecraftTextComponent',
-                schema = Model.OUTPUT_SCHEMA,
+                schema = self.OUTPUT_SCHEMA,
                 strict = true
             }
         },
@@ -437,7 +437,7 @@ do
 
     local success, newHook = DiscordHook.createWebhook(url)
     if not success then
-        error("DiscordWebhook connection failed (reason: " .. hook .. ")")
+        error("DiscordWebhook connection failed (reason: " .. newHook .. ")")
     end
 
     hook = newHook
