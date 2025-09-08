@@ -132,9 +132,9 @@ local Model = {
 }
 
 function Model:prompt()
-    local f = fs.open('prompt.txt', 'r')
+    local f = fs.open('prompt.md', 'r')
     if not f then
-        error("Failed to open prompt.txt for reading")
+        error("Failed to open prompt.md for reading")
     end
     local prompt = f.readAll()
     f.close()
