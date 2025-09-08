@@ -19,11 +19,11 @@
         "action": "show_text",
         "value": "<subliminal_message_string>"
       },
-      "bold": <boolean>,
-      "italic": <boolean>,
-      "strikethrough": <boolean>,
-      "obfuscated": <boolean>,
-      "underlined": <boolean>
+      "bold": "<boolean>",
+      "italic": "<boolean>",
+      "strikethrough": "<boolean>",
+      "obfuscated": "<boolean>",
+      "underlined": "<boolean>"
     },
     ...
   ]
