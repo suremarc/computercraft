@@ -484,11 +484,11 @@ end
 
 local model = OpenAi
 
-print("Test run")
+print("Health check. Sending wake up message to " .. model.name)
 
 model:getReply('crazypitlord', 'Wake up', 'system')
 
-print("Listening to chat")
+print("Health check successful. Listening to chat")
 while true do
     local event, username, message, uuid, isHidden = os.pullEvent 'chat'
     local status, err = pcall(handleEvent, model, username, message, uuid, isHidden)
