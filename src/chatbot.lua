@@ -4,7 +4,7 @@ local TIMEOUT_SECS = 60 -- 1m
 
 local chatBox = peripheral.wrap 'top'
 if not chatBox then
-    self:error("No chatBox peripheral found")
+    error("No chatBox peripheral found")
 end
 
 local hook
@@ -426,7 +426,7 @@ function OpenAi:readReplyStream(resp)
 
     for event in serverSideEvents(resp) do
         if event.event == 'error' then
-            self:error("Error event from OpenAI: " .. event.event)
+            self:error("Error event from OpenAI: " .. (event.data or "no error details"))
         elseif event.event == 'response.output_item.added' then
             local object = textutils.unserializeJSON(event.data)
             if object.item.type == 'message' and object.item.role == 'assistant' then
