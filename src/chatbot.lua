@@ -11,6 +11,8 @@ local hook
 
 local BOT_NAME = 'Axiom'
 
+local errlog = fs.open('errors.log', 'a')
+
 function handleEvent(model, username, message, uuid, isHidden)
     if string.find(message:lower(), BOT_NAME:lower(), nil, true) then
         print('<' .. username .. '>: ' .. message)
@@ -34,7 +36,32 @@ function handleEvent(model, username, message, uuid, isHidden)
     end
 end
 
+--[[
+    @param {http.Response} resp
+]]
+function serverSideEvents(resp)
+    assert(resp.getResponseHeaders()['Content-Type']:find 'text/event%-stream', "Response is not SSE")
+
+    return function()
+        local res = {}
+        while true do
+            local line = resp.readLine()
+            if not line then break end
+
+            local tag, payload = line:match '^(%w+):?%s*(.-)%s*$'
+            if not tag then
+                break
+            end
+
+            res[tag] = payload
+        end
+
+        return res
+    end
+end
+
 local Model = {
+    errlog = errlog,
     OUTPUT_SCHEMA = {
         ['$schema'] = 'http://json-schema.org/draft-07/schema#',
         ['type'] = 'object',
@@ -134,7 +161,7 @@ local Model = {
 function Model:prompt()
     local f = fs.open('prompt.md', 'r')
     if not f then
-        error("Failed to open prompt.md for reading")
+        self:error("Failed to open prompt.md for reading")
     end
     local prompt = f.readAll()
     f.close()
@@ -155,7 +182,7 @@ end
 function Model:apiKey()
     local f = fs.open(self.apiKeyFile, 'r')
     if not f then
-        error("Failed to open " .. self.apiKeyFile .. " for reading")
+        self:error("Failed to open " .. self.apiKeyFile .. " for reading")
     end
     local key = f.readAll()
     f.close()
@@ -168,7 +195,7 @@ function Model:getOrCreateConversation()
     -- First check if it's saved
     local f, err = fs.open(self.conversationIdFile, 'r+')
     if err then
-        error("Error opening " .. self.conversationIdFile .. ": " .. err)
+        self:error("Error opening " .. self.conversationIdFile .. ": " .. err)
     end
 
     local id = f.readAll()
@@ -181,8 +208,17 @@ function Model:getOrCreateConversation()
     return id
 end
 
-function Model:getReply(user, msg)
-    error("unimplemented")
+function Model:getReply(user, msg, _role)
+    self:error("unimplemented")
+end
+
+function Model:error(msg)
+    self.errlog.writeLine(msg)
+    if msg:len() > 100 then
+        msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
+    end
+
+    error(msg)
 end
 
 local Mistral = setmetatable(
@@ -227,7 +263,7 @@ function Mistral:createConversation()
         if errResp then
             errText = errResp.readAll()
         end
-        error("HTTP request to Mistral failed: " .. err .. " " .. errText)
+        self:error("HTTP request to Mistral failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
@@ -235,7 +271,7 @@ function Mistral:createConversation()
     local res = textutils.unserializeJSON(resText)
 
     if not (res and res.conversation_id) then
-        error("Error: invalid response from Mistral")
+        self:error("Error: invalid response from Mistral")
     end
 
     assert(res.conversation_id ~= '')
@@ -243,7 +279,7 @@ function Mistral:createConversation()
     return res.conversation_id
 end
 
-function Mistral:getReply(user, msg)
+function Mistral:getReply(user, msg, _role)
     local body = textutils.serializeJSON {
         inputs = {
             {
@@ -270,21 +306,21 @@ function Mistral:getReply(user, msg)
             errText = errResp.readAll()
         end
 
-        error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
+        self:error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
     resp.close()
     local res = textutils.unserializeJSON(resText)
     if not (res and res.outputs) then
-        error("Error: invalid response from " .. self.name .. "\n" .. resText)
+        self:error("Error: invalid response from " .. self.name .. "\n" .. resText)
     end
 
     local replyRaw = res.outputs[1].content
 
     local reply = textutils.unserializeJSON(replyRaw)
     if not reply then
-        error("Error: invalid JSON response from " .. self.name .. "\n" .. replyRaw)
+        self:error("Error: invalid JSON response from " .. self.name .. "\n" .. replyRaw)
     end
 
     return reply
@@ -323,7 +359,7 @@ function OpenAi:createConversation()
         if errResp then
             errText = errResp.readAll()
         end
-        error("HTTP request to OpenAI failed: " .. err .. " " .. errText)
+        self:error("HTTP request to OpenAI failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
@@ -331,7 +367,7 @@ function OpenAi:createConversation()
     local res = textutils.unserializeJSON(resText)
 
     if not (res and res.id) then
-        error("Error: invalid response from OpenAI")
+        self:error("Error: invalid response from OpenAI")
     end
 
     assert(res.id ~= '')
@@ -339,15 +375,15 @@ function OpenAi:createConversation()
     return res.id
 end
 
-function OpenAi:getReply(user, msg)
+function OpenAi:getReply(user, msg, role)
     local body = textutils.serializeJSON {
         conversation = self:getOrCreateConversation(),
-        model = 'gpt-4.1',
+        model = 'gpt-5',
         temperature = 1,
         input = {
             {
                 ['type'] = 'message',
-                role = 'user',
+                role = role or 'user',
                 content = textutils.serializeJSON {
                     user = user,
                     message = msg,
@@ -362,6 +398,7 @@ function OpenAi:getReply(user, msg)
                 strict = true
             }
         },
+        stream = true,
     }
 
     -- Send a message to OpenAI
@@ -378,34 +415,35 @@ function OpenAi:getReply(user, msg)
             errText = errResp.readAll()
         end
 
-        error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
+        self:error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
     end
 
-    local resText = resp.readAll()
-    resp.close()
-    local res = textutils.unserializeJSON(resText)
-    if not (res and res.output) then
-        error("Error: invalid response from " .. self.name .. "\n" .. resText)
-    end
+    return self:readReplyStream(resp)
+end
 
-    local replyRaw
-    for i = 1, #res.output do
-        if res.output[i].type == 'message' and res.output[i].role == 'assistant' and res.output[i].status == 'completed' then
-            replyRaw = res.output[i].content[1].text
-            break
+function OpenAi:readReplyStream(resp)
+    local itemToListen
+
+    for event in serverSideEvents(resp) do
+        if event.event == 'error' then
+            self:error("Error event from OpenAI: " .. (event.data or "no error details"))
+        elseif event.event == 'response.output_item.added' then
+            local object = textutils.unserializeJSON(event.data)
+            if object.item.type == 'message' and object.item.role == 'assistant' then
+                itemToListen = object.item.id
+            end
+        elseif event.event == 'response.output_text.done' then
+            local object = textutils.unserializeJSON(event.data)
+            if object.item_id == itemToListen then
+                resp.readAll()
+                resp.close()
+
+                return textutils.unserializeJSON(object.text)
+            end
         end
     end
 
-    if not replyRaw then
-        error("Error: no completed assistant message in response from " .. self.name .. "\n" .. resText)
-    end
-
-    local reply = textutils.unserializeJSON(replyRaw)
-    if not reply then
-        error("Error: invalid JSON response from " .. self.name .. "\n" .. replyRaw)
-    end
-
-    return reply
+    self:error 'Error: reached end of stream without receiving a complete response'
 end
 
 function sendMsgToDiscord(user, msg)
@@ -446,7 +484,11 @@ end
 
 local model = OpenAi
 
-print("Listening to chat")
+print("Health check. Sending wake up message to " .. model.name)
+
+model:getReply('crazypitlord', 'Wake up', 'system')
+
+print("Health check successful. Listening to chat")
 while true do
     local event, username, message, uuid, isHidden = os.pullEvent 'chat'
     local status, err = pcall(handleEvent, model, username, message, uuid, isHidden)
