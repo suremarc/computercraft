@@ -380,6 +380,10 @@ function OpenAi:getReply(user, msg, role)
         conversation = self:getOrCreateConversation(),
         model = 'gpt-5',
         temperature = 1,
+        tools = {
+            { ['type'] = 'web_search' },
+            { ['type'] = 'code_interpreter', container = { ['type'] = 'auto' } },
+        },
         input = {
             {
                 ['type'] = 'message',
