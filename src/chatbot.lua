@@ -1,3 +1,7 @@
+function isTestEnvironment()
+    return _HOST:find 'CraftOS' ~= nil
+end
+
 local config = {}
 
 function loadConfig()
@@ -88,7 +92,7 @@ function DiscordHook:sendMessage(sender, message, target)
     local text = table.concat(textPieces)
 
     local resp, err, errResp = http.post(
-        self.hook_url .. (_HOST:find 'CraftOS' and '?thread_id=1416490212892217378' or ''),
+        self.hook_url .. (isTestEnvironment() and '?thread_id=1416490212892217378' or ''),
         textutils.serializeJSON(
             {
                 content = text,
@@ -593,7 +597,7 @@ function logger:error(msg, opts)
 end
 
 -- ChatBox is not available in CraftOS-PC
-local sink = _HOST:find 'CraftOS' and MultiSink.new(DiscordHook) or MultiSink.new(DiscordHook, ChatBox)
+local sink = isTestEnvironment() and MultiSink.new(DiscordHook) or MultiSink.new(DiscordHook, ChatBox)
 sink:init()
 
 local model = OpenAi
