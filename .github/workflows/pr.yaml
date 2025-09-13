@@ -35,9 +35,12 @@ jobs:
       with:
         submodules: true
     
-    - name: Get envfile
-      run: printf '%s' '${{ secrets.ENVFILE }}' > .env
+    - name: Load secrets
+      uses: 0ndt/envfile@v2
+      with:
+        secrets: ${{ toJSON(secrets) }}
+        no_env: true
 
     - name: Test run
-      run: craftos --headless --mount-ro /=./ --script src/chatbot.lua
+      run: craftos --headless --mount-ro /=./ --exec src/chatbot
       timeout-minutes: 1

@@ -6,18 +6,7 @@ if isTestEnvironment() then
     config.set('abortTimeout', 120000)
 end
 
-local envConfig = {}
-
-local function loadEnvConfig()
-    for line in io.lines '.env' do
-        local key, value = line:match '^%s*([%w_]+)%s*=%s*(.-)%s*$'
-        if key and value then
-            envConfig[key] = value
-        end
-    end
-
-    envConfig.HTTP_TIMEOUT_SECS = tonumber(envConfig.HTTP_TIMEOUT_SECS) or 60
-end
+local envConfig = require 'envconfig'
 
 local MessageSink = {}
 
