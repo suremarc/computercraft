@@ -88,7 +88,7 @@ function DiscordHook:sendMessage(sender, message, target)
     local text = table.concat(textPieces)
 
     local resp, err, errResp = http.post(
-        self.hook_url,
+        self.hook_url .. (_HOST:find 'CraftOS' and '?thread_id=1416490212892217378' or ''),
         textutils.serializeJSON(
             {
                 content = text,
@@ -295,18 +295,30 @@ end
 
 function Model:getOrCreateConversation()
     -- First check if it's saved
-    local f, err = fs.open(self.conversationIdFile, 'r+')
-    if err then
-        error("Error opening " .. self.conversationIdFile .. ": " .. err)
+    local id
+    if fs.exists(self.conversationIdFile) then
+        local f, err = fs.open(self.conversationIdFile, 'r')
+        if err then
+            error("Error opening " .. self.conversationIdFile .. ": " .. err)
+        end
+
+
+        id = f.readAll()
+        f.close()
     end
 
-    local id = f.readAll()
     if not id or id == '' then
         id = self:createConversation()
+
+        local f, err = fs.open(self.conversationIdFile, 'w')
+        if err then
+            error("Error opening " .. self.conversationIdFile .. " for writing: " .. err)
+        end
+
         f.write(id)
+        f.close()
     end
 
-    f.close()
     return id
 end
 
@@ -581,7 +593,8 @@ function logger:error(msg, opts)
     end
 end
 
-local sink = MultiSink.new(DiscordHook, ChatBox)
+-- ChatBox is not available in CraftOS-PC
+local sink = _HOST:find 'CraftOS' and MultiSink.new(DiscordHook) or MultiSink.new(DiscordHook, ChatBox)
 sink:init()
 
 local model = OpenAi
