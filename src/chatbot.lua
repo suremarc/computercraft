@@ -302,7 +302,6 @@ function Model:getOrCreateConversation()
             error("Error opening " .. self.conversationIdFile .. ": " .. err)
         end
 
-
         id = f.readAll()
         f.close()
     end
