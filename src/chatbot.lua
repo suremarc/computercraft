@@ -36,7 +36,7 @@ local ChatBox = setmetatable(
 function ChatBox:init()
     local chatBox = peripheral.wrap 'top'
     if not chatBox then
-        ChatBox.logger:error("No chatBox peripheral found")
+        self.logger:error("No chatBox peripheral found")
     end
 
     self.chatBox = chatBox
@@ -72,7 +72,7 @@ local DiscordHook = setmetatable(
 function DiscordHook:init()
     local f = fs.open(self.hook_url_file, 'r')
     if not f then
-        error("Failed to open " .. self.hook_url_file .. " for reading")
+        self.logger:error("Failed to open " .. self.hook_url_file .. " for reading")
     end
     local url = f.readAll()
     f.close()
