@@ -595,6 +595,8 @@ while true do
         goto continue
     end
 
+    print('<' .. username .. '>: ' .. message)
+
     local reply
     local success, ret = pcall(model.getReply, model, username, message)
     if not success then
