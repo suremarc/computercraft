@@ -597,16 +597,16 @@ while true do
 
     local target = isHidden and username or nil
 
-    local message
+    local reply
     local success, ret = pcall(model.getReply, model, username, message)
     if not success then
         logger:error(ret, { suppress = true })
-        message = { paragraphs = { { { text = "Error processing request. Check logs" } } } }
+        reply = { paragraphs = { { { text = "Error processing request. Check logs" } } } }
     else
-        message = ret
+        reply = ret
     end
 
-    local success, err = pcall(sink.sendMessage, sink, BOT_NAME, message, username)
+    local success, err = pcall(sink.sendMessage, sink, BOT_NAME, reply, username)
     if not success then
         logger:error(err, { suppress = true })
     end
