@@ -24,7 +24,7 @@ jobs:
         submodules: true
     
     - name: Run tests
-      run: craftos --headless --script src/chatbot.lua || echo $? > ~/.retval
+      run: craftos-pc --headless --script src/chatbot.lua || echo $? > ~/.retval
       continue-on-error: true
       timeout-minutes: 2
     
