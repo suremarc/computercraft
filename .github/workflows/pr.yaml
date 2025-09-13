@@ -11,7 +11,7 @@ jobs:
     steps:
     - name: Install deps
       run: |
-        add-apt-repository ppa:jackmacwindows/ppa && \
+        sudo add-apt-repository ppa:jackmacwindows/ppa && \
         apt-get -y -qq update && \
         apt-get -y -qq install craftos-pc
     
