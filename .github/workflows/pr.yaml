@@ -1,5 +1,8 @@
 name: PR Checks
-on: [ pull_request ]
+on:
+  pull_request:
+  push:
+    branches: [ master ]
 
 defaults:
   run:
@@ -38,6 +41,7 @@ jobs:
       with:
         secrets: ${{ toJSON(secrets) }}
         no_env: true
+        exclude: "github_token"
 
     - name: Test run
       run: craftos --headless --mount-ro /=./ --mount-ro /=src --script src/chatbot.lua
