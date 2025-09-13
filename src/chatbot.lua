@@ -1,14 +1,22 @@
-local config = {}
+function isTestEnvironment()
+    return _HOST:find 'CraftOS' ~= nil
+end
 
-function loadConfig()
+if isTestEnvironment() then
+    config.set('abortTimeout', 120000)
+end
+
+local envConfig = {}
+
+function loadEnvConfig()
     for line in io.lines '.env' do
         local key, value = line:match '^%s*([%w_]+)%s*=%s*(.-)%s*$'
         if key and value then
-            config[key] = value
+            envConfig[key] = value
         end
     end
 
-    config.HTTP_TIMEOUT_SECS = tonumber(config.HTTP_TIMEOUT_SECS) or 60
+    envConfig.HTTP_TIMEOUT_SECS = tonumber(envConfig.HTTP_TIMEOUT_SECS) or 60
 end
 
 local MessageSink = {}
@@ -67,7 +75,7 @@ local DiscordHook = setmetatable(
 )
 
 function DiscordHook:init()
-    local url = config.DISCORD_WEBHOOK_URL
+    local url = envConfig.DISCORD_WEBHOOK_URL
     assert(url and url ~= '', "Discord webhook URL is empty")
     self.hook_url = url
 end
@@ -88,11 +96,11 @@ function DiscordHook:sendMessage(sender, message, target)
     local text = table.concat(textPieces)
 
     local resp, err, errResp = http.post(
-        self.hook_url,
+        self.hook_url .. (isTestEnvironment() and '?thread_id=' .. envConfig.DISCORD_TEST_THREAD_ID or ''),
         textutils.serializeJSON(
             {
                 content = text,
-                username = config.BOT_NAME,
+                username = envConfig.BOT_NAME,
             },
             { unicode_strings = true }
         ),
@@ -149,6 +157,7 @@ local Message = {
         properties = {
             paragraphs = {
                 ['type'] = 'array',
+                minItems = 1,
                 items = {
                     ['type'] = 'array',
                     items = {
@@ -184,7 +193,8 @@ local Message = {
                 properties = {
                     text = {
                         ['type'] = 'string',
-                        title = 'The direct text to apply'
+                        title = 'The direct text to apply',
+                        pattern = '.+'
                     },
                     color = {
                         ['type'] = { 'string', 'null' },
@@ -295,18 +305,29 @@ end
 
 function Model:getOrCreateConversation()
     -- First check if it's saved
-    local f, err = fs.open(self.conversationIdFile, 'r+')
-    if err then
-        error("Error opening " .. self.conversationIdFile .. ": " .. err)
+    local id
+    if fs.exists(self.conversationIdFile) then
+        local f, err = fs.open(self.conversationIdFile, 'r')
+        if err then
+            error("Error opening " .. self.conversationIdFile .. ": " .. err)
+        end
+
+        id = f.readAll()
+        f.close()
     end
 
-    local id = f.readAll()
     if not id or id == '' then
         id = self:createConversation()
+
+        local f, err = fs.open(self.conversationIdFile, 'w')
+        if err then
+            error("Error opening " .. self.conversationIdFile .. " for writing: " .. err)
+        end
+
         f.write(id)
+        f.close()
     end
 
-    f.close()
     return id
 end
 
@@ -323,7 +344,7 @@ local Mistral = setmetatable(
 )
 
 function Mistral:apiKey()
-    local key = config.MISTRAL_API_KEY
+    local key = envConfig.MISTRAL_API_KEY
     assert(key and key ~= '', "Mistral API key is empty")
     return key
 end
@@ -353,7 +374,7 @@ function Mistral:createConversation()
         url = 'https://api.mistral.ai/v1/conversations',
         body = body,
         headers = self:headers(body),
-        timeout = config.HTTP_TIMEOUT_SECS
+        timeout = envConfig.HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -395,7 +416,7 @@ function Mistral:getReply(user, msg, _role)
         url = 'https://api.mistral.ai/v1/conversations/' .. self:getOrCreateConversation(),
         body = body,
         headers = self:headers(body),
-        timeout = config.HTTP_TIMEOUT_SECS
+        timeout = envConfig.HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -433,7 +454,7 @@ local OpenAi = setmetatable(
 )
 
 function OpenAi:apiKey()
-    local key = config.OPENAI_API_KEY
+    local key = envConfig.OPENAI_API_KEY
     assert(key and key ~= '', "OpenAI API key is empty")
     return key
 end
@@ -454,7 +475,7 @@ function OpenAi:createConversation()
         url = 'https://api.openai.com/v1/conversations',
         body = body,
         headers = self:headers(body),
-        timeout = config.HTTP_TIMEOUT_SECS
+        timeout = envConfig.HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -481,7 +502,7 @@ end
 function OpenAi:getReply(user, msg, role)
     local body = textutils.serializeJSON {
         conversation = self:getOrCreateConversation(),
-        model = 'gpt-5',
+        model = isTestEnvironment() and 'gpt-5-nano' or 'gpt-5',
         temperature = 1,
         tools = {
             { ['type'] = 'web_search' },
@@ -520,7 +541,7 @@ function OpenAi:getReply(user, msg, role)
         url = 'https://api.openai.com/v1/responses',
         body = body,
         headers = self:headers(body),
-        timeout = config.HTTP_TIMEOUT_SECS
+        timeout = envConfig.HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -562,7 +583,7 @@ end
 
 --[[  Main program  ]]
 
-loadConfig()
+loadEnvConfig()
 
 local logger = {
     errlog = fs.open('errors.log', 'a')
@@ -570,6 +591,7 @@ local logger = {
 
 function logger:error(msg, opts)
     self.errlog.writeLine(msg)
+    self.errlog.flush()
     if msg:len() > 100 then
         msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
     end
@@ -581,7 +603,8 @@ function logger:error(msg, opts)
     end
 end
 
-local sink = MultiSink.new(DiscordHook, ChatBox)
+-- ChatBox is not available in CraftOS-PC
+local sink = isTestEnvironment() and MultiSink.new(DiscordHook) or MultiSink.new(DiscordHook, ChatBox)
 sink:init()
 
 local model = OpenAi
@@ -594,7 +617,7 @@ do
         logger:error(ret, { fatal = true })
     end
 
-    local success, err = pcall(sink.sendMessage, sink, config.BOT_NAME, ret)
+    local success, err = pcall(sink.sendMessage, sink, envConfig.BOT_NAME, ret)
     if not success then
         logger:error(err, { fatal = true })
     end
@@ -602,11 +625,15 @@ do
     print("Health check successful. Received reply from " .. model.name)
 end
 
+if isTestEnvironment() then
+    os.shutdown()
+end
+
 print("Listening to chat")
 while true do
     local event, username, message, uuid, isHidden = os.pullEvent 'chat'
 
-    if not string.find(message:lower(), config.BOT_NAME:lower(), nil, true) then
+    if not string.find(message:lower(), envConfig.BOT_NAME:lower(), nil, true) then
         goto continue
     end
 
@@ -621,7 +648,7 @@ while true do
         reply = ret
     end
 
-    local success, err = pcall(sink.sendMessage, sink, config.BOT_NAME, reply, isHidden and username or nil)
+    local success, err = pcall(sink.sendMessage, sink, envConfig.BOT_NAME, reply, isHidden and username or nil)
     if not success then
         logger:error(err)
     end
