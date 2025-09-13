@@ -13,10 +13,7 @@ jobs:
       run: |
         sudo add-apt-repository ppa:jackmacwindows/ppa
         sudo apt-get -y -qq update
-    
-    - uses: awalsh128/cache-apt-pkgs-action@latest
-      with: 
-        packages: craftos-pc
+        sudo apt-get -y -qq install craftos-pc
     
     - name: Checkout
       uses: actions/checkout@v5
