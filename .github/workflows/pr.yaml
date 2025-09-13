@@ -42,5 +42,5 @@ jobs:
         no_env: true
 
     - name: Test run
-      run: craftos --headless --mount-ro /=./ --exec src/chatbot
+      run: craftos --headless --mount-ro /=./ --script src/chatbot.lua
       timeout-minutes: 1
