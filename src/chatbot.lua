@@ -96,7 +96,7 @@ function DiscordHook:sendMessage(sender, message, target)
     local text = table.concat(textPieces)
 
     local resp, err, errResp = http.post(
-        self.hook_url .. (isTestEnvironment() and '?thread_id=1416490212892217378' or ''),
+        self.hook_url .. (isTestEnvironment() and '?thread_id=' .. envConfig.DISCORD_TEST_THREAD_ID or ''),
         textutils.serializeJSON(
             {
                 content = text,
