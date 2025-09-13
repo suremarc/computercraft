@@ -13,8 +13,11 @@ jobs:
       run: |
         sudo add-apt-repository ppa:jackmacwindows/ppa
         sudo apt-get -y -qq update
-        sudo apt-get -y -qq install craftos-pc
-    
+      
+    - uses: awalsh128/cache-apt-pkgs-action@latest
+      with:
+        packages: craftos-pc
+      
     - name: Checkout
       uses: actions/checkout@v5
       with:
@@ -24,7 +27,7 @@ jobs:
       run: printf '%s' '${{ secrets.ENVFILE }}' > .env
 
     - name: Run tests
-      run: craftos --headless --mount-ro /=./ --script src/chatbot.lua || echo $? > ~/.retval
+      run: craftos --headless --mount-ro /=./ --exec chatbot || echo $? > ~/.retval
       continue-on-error: true
       timeout-minutes: 2
     
