@@ -1,79 +1,160 @@
-local DiscordHook = require 'DiscordHook'
+local logger = {
+    errlog = fs.open('errors.log', 'a')
+}
 
-local TIMEOUT_SECS = 60 -- 1m
+function logger:error(msg)
+    self.errlog.writeLine(msg)
+    if msg:len() > 100 then
+        msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
+    end
+
+    error(msg)
+end
+
+local HTTP_TIMEOUT_SECS = 60 -- 1m
 
 local chatBox = peripheral.wrap 'top'
 if not chatBox then
     error("No chatBox peripheral found")
 end
 
-local hook
+local MessageSink = {
+    logger = logger
+}
+
+--[[
+    @param {string} sender
+    @param {string} message
+    @param {string} [target]
+]]
+function MessageSink:sendMessage(sender, message, target)
+    self.logger:error 'unimplemented'
+end
+
+local ChatBox = setmetatable(
+    { chatBox = nil },
+    { __index = MessageSink }
+)
+
+function ChatBox:init()
+    local chatBox = peripheral.wrap 'top'
+    if not chatBox then
+        ChatBox.logger:error("No chatBox peripheral found")
+    end
+
+    self.chatBox = chatBox
+end
+
+function ChatBox:sendMessage(sender, message, target)
+    for _, paragraph in ipairs(message.paragraphs) do
+        local formattedMessage, err = textutils.serializeJSON(paragraph, { unicode_strings = true })
+        if not formattedMessage then
+            self.logger:error("Failed to serialize message: " .. err)
+        end
+
+        local success, err
+        if target then
+            success, err = self.chatBox.sendFormattedMessageToPlayer(formattedMessage, target, sender, '<>')
+        else
+            success, err = self.chatBox.sendFormattedMessage(formattedMessage, sender, '<>')
+        end
+
+        if not success then
+            self.logger:error("Failed to send message: " .. err)
+        end
+
+        os.sleep(0.25)
+    end
+end
+
+local DiscordHook = setmetatable(
+    { hook_url = nil, hook_url_file = 'discord_webhook.txt' },
+    { __index = MessageSink }
+)
+
+function DiscordHook:init()
+    local f = fs.open(self.hook_url_file, 'r')
+    if not f then
+        error("Failed to open " .. self.hook_url_file .. " for reading")
+    end
+    local url = f.readAll()
+    f.close()
+
+    assert(url and url ~= '', "Discord webhook URL is empty")
+
+    self.hook_url = url
+end
+
+function DiscordHook:sendMessage(sender, message, target)
+    if target ~= nil then
+        -- We can't handle private messages in Discord
+        return
+    end
+
+    local textPieces = {}
+    for _, paragraph in ipairs(message.paragraphs) do
+        for _, component in ipairs(paragraph) do
+            table.insert(textPieces, component.text)
+        end
+    end
+
+    local text = table.concat(textPieces)
+
+    local resp, err, errResp = http.post(
+        self.hook_url,
+        textutils.serializeJSON(
+            {
+                content = text,
+                username = BOT_NAME,
+            },
+            { unicode_strings = true }
+        ),
+        { ['Content-Type'] = 'application/json' }
+    )
+
+    if not resp then
+        local errText = ""
+        if errResp then
+            errText = errResp.readAll()
+        end
+
+        self.logger:error("HTTP request to Discord failed: " .. err .. " " .. errText)
+    end
+
+    resp.readAll()
+    resp.close()
+end
 
 local BOT_NAME = 'Axiom'
-
-local errlog = fs.open('errors.log', 'a')
-
 function handleEvent(model, username, message, uuid, isHidden)
     if string.find(message:lower(), BOT_NAME:lower(), nil, true) then
         print('<' .. username .. '>: ' .. message)
 
         local resp = model:getReply(username, message)
-        local formattedMessage = textutils.serializeJSON(resp.components, { unicode_strings = true })
-        print(formattedMessage)
 
-        if isHidden then
-            chatBox.sendFormattedMessageToPlayer(formattedMessage, username, BOT_NAME, '<>')
-        else
-            chatBox.sendFormattedMessage(formattedMessage, BOT_NAME, '<>')
+        local target = isHidden and username or nil
 
-            local text = ""
-            for i = 1, #resp.components do
-                text = text .. resp.components[i].text
-            end
-
-            sendMsgToDiscord(BOT_NAME, text)
-        end
+        DiscordHook:sendMessage(username, resp, target)
+        ChatBox:sendMessage(username, resp, target)
     end
 end
 
---[[
-    @param {http.Response} resp
-]]
-function serverSideEvents(resp)
-    assert(resp.getResponseHeaders()['Content-Type']:find 'text/event%-stream', "Response is not SSE")
-
-    return function()
-        local res = {}
-        while true do
-            local line = resp.readLine()
-            if not line then break end
-
-            local tag, payload = line:match '^(%w+):?%s*(.-)%s*$'
-            if not tag then
-                break
-            end
-
-            res[tag] = payload
-        end
-
-        return res
-    end
-end
-
-local Model = {
-    errlog = errlog,
-    OUTPUT_SCHEMA = {
+local Message = {
+    TEXT_SCHEMA = {
         ['$schema'] = 'http://json-schema.org/draft-07/schema#',
         ['type'] = 'object',
         properties = {
-            components = {
+            paragraphs = {
                 ['type'] = 'array',
                 items = {
-                    ['$ref'] = '#/definitions/text_object',
+                    ['type'] = 'array',
+                    items = {
+                        ['$ref'] = '#/definitions/text_object',
+                    }
                 }
             }
         },
-        required = { 'components' },
+        required = { 'paragraphs' },
         additionalProperties = false,
         definitions = {
             text_component = {
@@ -158,10 +239,47 @@ local Model = {
     }
 }
 
+function Message:serializeTextComponent()
+    local result, err = textutils.serializeJSON(paragraph, { unicode_strings = true })
+    if not result then
+        logger:error("Failed to serialize text component: " .. err)
+    end
+
+    return
+end
+
+--[[
+    @param {http.Response} resp
+]]
+function serverSideEvents(resp)
+    assert(resp.getResponseHeaders()['Content-Type']:find 'text/event%-stream', "Response is not SSE")
+
+    return function()
+        local res = {}
+        while true do
+            local line = resp.readLine()
+            if not line then break end
+
+            local tag, payload = line:match '^(%w+):?%s*(.-)%s*$'
+            if not tag then
+                break
+            end
+
+            res[tag] = payload
+        end
+
+        return res
+    end
+end
+
+local Model = {
+    logger = logger,
+}
+
 function Model:prompt()
     local f = fs.open('prompt.md', 'r')
     if not f then
-        self:error("Failed to open prompt.md for reading")
+        self.logger:error("Failed to open prompt.md for reading")
     end
     local prompt = f.readAll()
     f.close()
@@ -182,7 +300,7 @@ end
 function Model:apiKey()
     local f = fs.open(self.apiKeyFile, 'r')
     if not f then
-        self:error("Failed to open " .. self.apiKeyFile .. " for reading")
+        self.logger:error("Failed to open " .. self.apiKeyFile .. " for reading")
     end
     local key = f.readAll()
     f.close()
@@ -195,7 +313,7 @@ function Model:getOrCreateConversation()
     -- First check if it's saved
     local f, err = fs.open(self.conversationIdFile, 'r+')
     if err then
-        self:error("Error opening " .. self.conversationIdFile .. ": " .. err)
+        self.logger:error("Error opening " .. self.conversationIdFile .. ": " .. err)
     end
 
     local id = f.readAll()
@@ -209,16 +327,7 @@ function Model:getOrCreateConversation()
 end
 
 function Model:getReply(user, msg, _role)
-    self:error("unimplemented")
-end
-
-function Model:error(msg)
-    self.errlog.writeLine(msg)
-    if msg:len() > 100 then
-        msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
-    end
-
-    error(msg)
+    self.logger:error("unimplemented")
 end
 
 local Mistral = setmetatable(
@@ -243,7 +352,7 @@ function Mistral:createConversation()
                 ['type'] = 'json_object',
                 json_schema = {
                     name = 'MinecraftTextComponent',
-                    schema_definition = self.OUTPUT_SCHEMA,
+                    schema_definition = Message.TEXT_SCHEMA,
                     strict = true
                 }
             },
@@ -255,7 +364,7 @@ function Mistral:createConversation()
         url = 'https://api.mistral.ai/v1/conversations',
         body = body,
         headers = self:headers(body),
-        timeout = TIMEOUT_SECS
+        timeout = HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -263,7 +372,7 @@ function Mistral:createConversation()
         if errResp then
             errText = errResp.readAll()
         end
-        self:error("HTTP request to Mistral failed: " .. err .. " " .. errText)
+        self.logger:error("HTTP request to Mistral failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
@@ -271,7 +380,7 @@ function Mistral:createConversation()
     local res = textutils.unserializeJSON(resText)
 
     if not (res and res.conversation_id) then
-        self:error("Error: invalid response from Mistral")
+        self.logger:error("Error: invalid response from Mistral")
     end
 
     assert(res.conversation_id ~= '')
@@ -297,7 +406,7 @@ function Mistral:getReply(user, msg, _role)
         url = 'https://api.mistral.ai/v1/conversations/' .. self:getOrCreateConversation(),
         body = body,
         headers = self:headers(body),
-        timeout = TIMEOUT_SECS
+        timeout = HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -306,21 +415,21 @@ function Mistral:getReply(user, msg, _role)
             errText = errResp.readAll()
         end
 
-        self:error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
+        self.logger:error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
     resp.close()
     local res = textutils.unserializeJSON(resText)
     if not (res and res.outputs) then
-        self:error("Error: invalid response from " .. self.name .. "\n" .. resText)
+        self.logger:error("Error: invalid response from " .. self.name .. "\n" .. resText)
     end
 
     local replyRaw = res.outputs[1].content
 
     local reply = textutils.unserializeJSON(replyRaw)
     if not reply then
-        self:error("Error: invalid JSON response from " .. self.name .. "\n" .. replyRaw)
+        self.logger:error("Error: invalid JSON response from " .. self.name .. "\n" .. replyRaw)
     end
 
     return reply
@@ -351,7 +460,7 @@ function OpenAi:createConversation()
         url = 'https://api.openai.com/v1/conversations',
         body = body,
         headers = self:headers(body),
-        timeout = TIMEOUT_SECS
+        timeout = HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -359,7 +468,7 @@ function OpenAi:createConversation()
         if errResp then
             errText = errResp.readAll()
         end
-        self:error("HTTP request to OpenAI failed: " .. err .. " " .. errText)
+        self.logger:error("HTTP request to OpenAI failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
@@ -367,7 +476,7 @@ function OpenAi:createConversation()
     local res = textutils.unserializeJSON(resText)
 
     if not (res and res.id) then
-        self:error("Error: invalid response from OpenAI")
+        self.logger:error("Error: invalid response from OpenAI")
     end
 
     assert(res.id ~= '')
@@ -398,7 +507,7 @@ function OpenAi:getReply(user, msg, role)
             format = {
                 ['type'] = 'json_schema',
                 name = 'MinecraftTextComponent',
-                schema = self.OUTPUT_SCHEMA,
+                schema = Message.TEXT_SCHEMA,
                 strict = true
             }
         },
@@ -410,7 +519,7 @@ function OpenAi:getReply(user, msg, role)
         url = 'https://api.openai.com/v1/responses',
         body = body,
         headers = self:headers(body),
-        timeout = TIMEOUT_SECS
+        timeout = HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -419,7 +528,7 @@ function OpenAi:getReply(user, msg, role)
             errText = errResp.readAll()
         end
 
-        self:error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
+        self.logger:error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
     end
 
     return self:readReplyStream(resp)
@@ -430,7 +539,7 @@ function OpenAi:readReplyStream(resp)
 
     for event in serverSideEvents(resp) do
         if event.event == 'error' then
-            self:error("Error event from OpenAI: " .. (event.data or "no error details"))
+            self.logger:error("Error event from OpenAI: " .. (event.data or "no error details"))
         elseif event.event == 'response.output_item.added' then
             local object = textutils.unserializeJSON(event.data)
             if object.item.type == 'message' and object.item.role == 'assistant' then
@@ -447,43 +556,16 @@ function OpenAi:readReplyStream(resp)
         end
     end
 
-    self:error 'Error: reached end of stream without receiving a complete response'
+    self.logger:error 'Error: reached end of stream without receiving a complete response'
 end
 
 function sendMsgToDiscord(user, msg)
     print("Sending message to Discord: " .. msg)
-    local success, err = hook.sendJSON(
-        textutils.serializeJSON(
-            {
-                content = msg,
-                username = user,
-            },
-            { unicode_strings = true }
-        )
-    )
-
-    if not success then
-        error("Failed to send message to Discord (reason: " .. err .. ")")
-    end
 end
 
 do
-    local f = fs.open('discord_webhook.txt', 'r')
-    if not f then
-        error("Failed to open discord_webhook.txt for reading")
-    end
-    local url = f.readAll()
-    f.close()
-
-    assert(url and url ~= '', "Discord webhook URL is empty")
-
-    local success, newHook = DiscordHook.createWebhook(url)
-    if not success then
-        error("DiscordWebhook connection failed (reason: " .. newHook .. ")")
-    end
-
-    hook = newHook
-    print("Webhook initialized")
+    DiscordHook:init()
+    ChatBox:init()
 end
 
 local model = OpenAi
