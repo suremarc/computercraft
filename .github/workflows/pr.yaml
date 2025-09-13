@@ -26,12 +26,6 @@ jobs:
     - name: Get envfile
       run: printf '%s' '${{ secrets.ENVFILE }}' > .env
 
-    - name: Run tests
-      run: craftos --headless --mount-ro /=./ --script src/chatbot.lua || echo $? > ~/.retval
-      continue-on-error: true
-      timeout-minutes: 2
-    
-    - name: Show logs
-      run: |
-        cat ~/.local/share/craftos-pc/computer/0/chatbot.log
-        if [ -e ~/.retval ]; then exit $(cat ~/.retval); fi
+    - name: Test run
+      run: craftos --headless --mount-ro /=./ --script src/chatbot.lua
+      timeout-minutes: 1
