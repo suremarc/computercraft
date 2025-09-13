@@ -2,22 +2,10 @@ local BOT_NAME = 'Axiom'
 
 local HTTP_TIMEOUT_SECS = 60 -- 1m
 
-local logger = {
-    errlog = fs.open('errors.log', 'a')
-}
+local MessageSink = {}
 
-function logger:error(msg)
-    self.errlog.writeLine(msg)
-    if msg:len() > 100 then
-        msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
-    end
-
-    error(msg)
-end
-
-local MessageSink = {
-    logger = logger
-}
+-- noop by default
+function MessageSink:init() end
 
 --[[
     @param {string} sender
@@ -25,7 +13,7 @@ local MessageSink = {
     @param {string} [target]
 ]]
 function MessageSink:sendMessage(sender, message, target)
-    self.logger:error 'unimplemented'
+    error 'unimplemented'
 end
 
 local ChatBox = setmetatable(
@@ -36,7 +24,7 @@ local ChatBox = setmetatable(
 function ChatBox:init()
     local chatBox = peripheral.wrap 'top'
     if not chatBox then
-        self.logger:error("No chatBox peripheral found")
+        error("No chatBox peripheral found")
     end
 
     self.chatBox = chatBox
@@ -46,7 +34,7 @@ function ChatBox:sendMessage(sender, message, target)
     for _, paragraph in ipairs(message.paragraphs) do
         local formattedMessage, err = textutils.serializeJSON(paragraph, { unicode_strings = true })
         if not formattedMessage then
-            self.logger:error("Failed to serialize message: " .. err)
+            error("Failed to serialize message: " .. err)
         end
 
         local success, err
@@ -57,7 +45,7 @@ function ChatBox:sendMessage(sender, message, target)
         end
 
         if not success then
-            self.logger:error("Failed to send message: " .. err)
+            error("Failed to send message: " .. err)
         end
 
         os.sleep(0.25)
@@ -72,7 +60,7 @@ local DiscordHook = setmetatable(
 function DiscordHook:init()
     local f = fs.open(self.hook_url_file, 'r')
     if not f then
-        self.logger:error("Failed to open " .. self.hook_url_file .. " for reading")
+        error("Failed to open " .. self.hook_url_file .. " for reading")
     end
     local url = f.readAll()
     f.close()
@@ -115,23 +103,40 @@ function DiscordHook:sendMessage(sender, message, target)
             errText = errResp.readAll()
         end
 
-        self.logger:error("HTTP request to Discord failed: " .. err .. " " .. errText)
+        error("HTTP request to Discord failed: " .. err .. " " .. errText)
     end
 
     resp.readAll()
     resp.close()
 end
 
-function handleEvent(model, username, message, uuid, isHidden)
-    if string.find(message:lower(), BOT_NAME:lower(), nil, true) then
-        print('<' .. username .. '>: ' .. message)
+local MultiSink = setmetatable(
+    { sinks = {} },
+    { __index = MessageSink }
+)
 
-        local resp = model:getReply(username, message)
+function MultiSink.new(...)
+    return setmetatable({ sinks = { ... } }, { __index = MultiSink })
+end
 
-        local target = isHidden and username or nil
+function MultiSink:init()
+    for _, sink in ipairs(self.sinks) do
+        sink:init()
+    end
+end
 
-        DiscordHook:sendMessage(username, resp, target)
-        ChatBox:sendMessage(username, resp, target)
+function MultiSink:sendMessage(sender, message, target)
+    local errs = {}
+
+    for _, sink in ipairs(self.sinks) do
+        local success, err = pcall(sink.sendMessage, sink, sender, message, target)
+        if not success then
+            table.insert(errs, err)
+        end
+    end
+
+    if #errs > 0 then
+        error("Failed to send message to one of sinks: \n" .. table.concat(errs, '\n'))
     end
 end
 
@@ -259,14 +264,12 @@ function serverSideEvents(resp)
     end
 end
 
-local Model = {
-    logger = logger,
-}
+local Model = {}
 
 function Model:prompt()
     local f = fs.open('prompt.md', 'r')
     if not f then
-        self.logger:error("Failed to open prompt.md for reading")
+        error("Failed to open prompt.md for reading")
     end
     local prompt = f.readAll()
     f.close()
@@ -287,7 +290,7 @@ end
 function Model:apiKey()
     local f = fs.open(self.apiKeyFile, 'r')
     if not f then
-        self.logger:error("Failed to open " .. self.apiKeyFile .. " for reading")
+        error("Failed to open " .. self.apiKeyFile .. " for reading")
     end
     local key = f.readAll()
     f.close()
@@ -300,7 +303,7 @@ function Model:getOrCreateConversation()
     -- First check if it's saved
     local f, err = fs.open(self.conversationIdFile, 'r+')
     if err then
-        self.logger:error("Error opening " .. self.conversationIdFile .. ": " .. err)
+        error("Error opening " .. self.conversationIdFile .. ": " .. err)
     end
 
     local id = f.readAll()
@@ -314,7 +317,7 @@ function Model:getOrCreateConversation()
 end
 
 function Model:getReply(user, msg, _role)
-    self.logger:error("unimplemented")
+    error("unimplemented")
 end
 
 local Mistral = setmetatable(
@@ -359,7 +362,7 @@ function Mistral:createConversation()
         if errResp then
             errText = errResp.readAll()
         end
-        self.logger:error("HTTP request to Mistral failed: " .. err .. " " .. errText)
+        error("HTTP request to Mistral failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
@@ -367,7 +370,7 @@ function Mistral:createConversation()
     local res = textutils.unserializeJSON(resText)
 
     if not (res and res.conversation_id) then
-        self.logger:error("Error: invalid response from Mistral")
+        error("Error: invalid response from Mistral")
     end
 
     assert(res.conversation_id ~= '')
@@ -402,21 +405,21 @@ function Mistral:getReply(user, msg, _role)
             errText = errResp.readAll()
         end
 
-        self.logger:error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
+        error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
     resp.close()
     local res = textutils.unserializeJSON(resText)
     if not (res and res.outputs) then
-        self.logger:error("Error: invalid response from " .. self.name .. "\n" .. resText)
+        error("Error: invalid response from " .. self.name .. "\n" .. resText)
     end
 
     local replyRaw = res.outputs[1].content
 
     local reply = textutils.unserializeJSON(replyRaw)
     if not reply then
-        self.logger:error("Error: invalid JSON response from " .. self.name .. "\n" .. replyRaw)
+        error("Error: invalid JSON response from " .. self.name .. "\n" .. replyRaw)
     end
 
     return reply
@@ -455,7 +458,7 @@ function OpenAi:createConversation()
         if errResp then
             errText = errResp.readAll()
         end
-        self.logger:error("HTTP request to OpenAI failed: " .. err .. " " .. errText)
+        error("HTTP request to OpenAI failed: " .. err .. " " .. errText)
     end
 
     local resText = resp.readAll()
@@ -463,7 +466,7 @@ function OpenAi:createConversation()
     local res = textutils.unserializeJSON(resText)
 
     if not (res and res.id) then
-        self.logger:error("Error: invalid response from OpenAI")
+        error("Error: invalid response from OpenAI")
     end
 
     assert(res.id ~= '')
@@ -515,7 +518,7 @@ function OpenAi:getReply(user, msg, role)
             errText = errResp.readAll()
         end
 
-        self.logger:error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
+        error("HTTP request to " .. self.name .. " failed: " .. err .. " " .. errText)
     end
 
     return self:readReplyStream(resp)
@@ -526,7 +529,7 @@ function OpenAi:readReplyStream(resp)
 
     for event in serverSideEvents(resp) do
         if event.event == 'error' then
-            self.logger:error("Error event from OpenAI: " .. (event.data or "no error details"))
+            error("Error event from OpenAI: " .. (event.data or "no error details"))
         elseif event.event == 'response.output_item.added' then
             local object = textutils.unserializeJSON(event.data)
             if object.item.type == 'message' and object.item.role == 'assistant' then
@@ -543,25 +546,70 @@ function OpenAi:readReplyStream(resp)
         end
     end
 
-    self.logger:error 'Error: reached end of stream without receiving a complete response'
+    error 'Error: reached end of stream without receiving a complete response'
 end
 
-do
-    DiscordHook:init()
-    ChatBox:init()
+local logger = {
+    errlog = fs.open('errors.log', 'a')
+}
+
+function logger:error(msg, opts)
+    self.errlog.writeLine(msg)
+    if msg:len() > 100 then
+        msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
+    end
+
+    if opts.suppress then
+        io.stderr:write(msg .. '\n')
+    else
+        error(msg)
+    end
 end
+
+local sink = MultiSink.new(DiscordHook, ChatBox)
+sink:init()
 
 local model = OpenAi
 
-print("Health check. Sending wake up message to " .. model.name)
+do
+    print("Health check. Sending wake up message to " .. model.name)
 
-model:getReply('crazypitlord', 'Wake up', 'system')
+    local success, ret = pcall(model.getReply, model, 'crazypitlord', 'Wake up', 'system')
+    if not success then
+        logger:error(ret)
+    end
 
-print("Health check successful. Listening to chat")
+    local success, err = pcall(sink.sendMessage, sink, BOT_NAME, ret)
+    if not success then
+        logger:error(err)
+    end
+
+    print("Health check successful. Received reply from " .. model.name)
+end
+
+print("Listening to chat")
 while true do
     local event, username, message, uuid, isHidden = os.pullEvent 'chat'
-    local status, err = pcall(handleEvent, model, username, message, uuid, isHidden)
-    if not status then
-        io.stderr:write(err .. '\n')
+
+    if not string.find(message:lower(), BOT_NAME:lower(), nil, true) then
+        goto continue
     end
+
+    local target = isHidden and username or nil
+
+    local message
+    local success, ret = pcall(model.getReply, model, username, message)
+    if not success then
+        logger:error(ret, { suppress = true })
+        message = { paragraphs = { { { text = "Error processing request. Check logs" } } } }
+    else
+        message = ret
+    end
+
+    local success, err = pcall(sink.sendMessage, sink, BOT_NAME, message, username)
+    if not success then
+        logger:error(err, { suppress = true })
+    end
+
+    ::continue::
 end
