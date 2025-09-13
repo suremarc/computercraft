@@ -20,8 +20,11 @@ jobs:
       with:
         submodules: true
     
+    - name: Get envfile
+      run: printf '%s' '${{ secrets.ENVFILE }}' > .env
+
     - name: Run tests
-      run: craftos --headless --script src/chatbot.lua || echo $? > ~/.retval
+      run: craftos --headless --mount-ro /.env=.env --script src/chatbot.lua || echo $? > ~/.retval
       continue-on-error: true
       timeout-minutes: 2
     
