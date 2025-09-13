@@ -12,8 +12,8 @@ jobs:
     - name: Install deps
       run: |
         sudo add-apt-repository ppa:jackmacwindows/ppa && \
-        apt-get -y -qq update && \
-        apt-get -y -qq install craftos-pc
+        sudo apt-get -y -qq update && \
+        sudo apt-get -y -qq install craftos-pc
     
     - name: Checkout
       uses: actions/checkout@v5
@@ -21,11 +21,11 @@ jobs:
         submodules: true
     
     - name: Run tests
-      run: ./craftos --headless --script src/chatbot.lua || echo $? > ~/.retval
+      run: craftos --headless --script src/chatbot.lua || echo $? > ~/.retval
       continue-on-error: true
       timeout-minutes: 2
     
     - name: Show logs
       run: |
-        cat ~/.local/share/craftos-pc/computer/0/CraftOSTest.log
+        cat ~/.local/share/craftos-pc/computer/0/chatbot.log
         if [ -e ~/.retval ]; then exit $(cat ~/.retval); fi
