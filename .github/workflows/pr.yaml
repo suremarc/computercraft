@@ -6,6 +6,24 @@ defaults:
     shell: bash
 
 jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Set up Lua
+      uses: ljmf00/setup-lua@v.1.0.1
+      with:
+        lua-version: '5.3'
+
+    - name: Install luacheck
+      run: luarocks install luacheck
+
+    - name: Run luacheck
+      run: luacheck src
+
   test:
     runs-on: ubuntu-22.04
     steps:
