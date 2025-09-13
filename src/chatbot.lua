@@ -1,4 +1,4 @@
-function isTestEnvironment()
+local function isTestEnvironment()
     return _HOST:find 'CraftOS' ~= nil
 end
 
@@ -8,7 +8,7 @@ end
 
 local envConfig = {}
 
-function loadEnvConfig()
+local function loadEnvConfig()
     for line in io.lines '.env' do
         local key, value = line:match '^%s*([%w_]+)%s*=%s*(.-)%s*$'
         if key and value then
@@ -29,7 +29,7 @@ function MessageSink:init() end
     @param {string} message
     @param {string} [target]
 ]]
-function MessageSink:sendMessage(sender, message, target)
+function MessageSink:sendMessage(_sender, _message, _target)
     error 'unimplemented'
 end
 
@@ -80,7 +80,7 @@ function DiscordHook:init()
     self.hook_url = url
 end
 
-function DiscordHook:sendMessage(sender, message, target)
+function DiscordHook:sendMessage(_sender, message, target)
     if target ~= nil then
         -- We can't handle private messages in Discord
         return
@@ -91,6 +91,8 @@ function DiscordHook:sendMessage(sender, message, target)
         for _, component in ipairs(paragraph) do
             table.insert(textPieces, component.text)
         end
+
+        table.insert(textPieces, '\n')
     end
 
     local text = table.concat(textPieces)
@@ -219,7 +221,10 @@ local Message = {
                         properties = {
                             action = {
                                 ['type'] = 'string',
-                                enum = { 'open_url', 'open_file', 'run_command', 'suggest_command', 'change_page', 'copy_to_clipboard' }
+                                enum = {
+                                    'open_url', 'open_file', 'run_command',
+                                    'suggest_command', 'change_page', 'copy_to_clipboard'
+                                }
                             },
                             value = { ['type'] = 'string' }
                         },
@@ -245,7 +250,10 @@ local Message = {
                         additionalProperties = false,
                     },
                 },
-                required = { 'text', 'color', 'font', 'bold', 'italic', 'underlined', 'strikethrough', 'obfuscated', 'shadow_color', 'insertion', 'clickEvent', 'hoverEvent' },
+                required = {
+                    'text', 'color', 'font', 'bold', 'italic', 'underlined', 'strikethrough',
+                    'obfuscated', 'shadow_color', 'insertion', 'clickEvent', 'hoverEvent'
+                },
                 additionalProperties = false,
             }
         }
@@ -255,7 +263,7 @@ local Message = {
 --[[
     @param {http.Response} resp
 ]]
-function serverSideEvents(resp)
+local function serverSideEvents(resp)
     assert(resp.getResponseHeaders()['Content-Type']:find 'text/event%-stream', "Response is not SSE")
 
     return function()
@@ -331,7 +339,7 @@ function Model:getOrCreateConversation()
     return id
 end
 
-function Model:getReply(user, msg, _role)
+function Model:getReply(_user, _msg, _role)
     error 'unimplemented'
 end
 
@@ -631,7 +639,7 @@ end
 
 print("Listening to chat")
 while true do
-    local event, username, message, uuid, isHidden = os.pullEvent 'chat'
+    local _event, username, message, _uuid, isHidden = os.pullEvent 'chat'
 
     if not string.find(message:lower(), envConfig.BOT_NAME:lower(), nil, true) then
         goto continue
