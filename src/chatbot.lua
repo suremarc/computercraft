@@ -157,6 +157,7 @@ local Message = {
         properties = {
             paragraphs = {
                 ['type'] = 'array',
+                minItems = 1,
                 items = {
                     ['type'] = 'array',
                     items = {
@@ -192,7 +193,8 @@ local Message = {
                 properties = {
                     text = {
                         ['type'] = 'string',
-                        title = 'The direct text to apply'
+                        title = 'The direct text to apply',
+                        pattern = '.+'
                     },
                     color = {
                         ['type'] = { 'string', 'null' },
@@ -621,6 +623,10 @@ do
     end
 
     print("Health check successful. Received reply from " .. model.name)
+end
+
+if isTestEnvironment() then
+    os.shutdown()
 end
 
 print("Listening to chat")
