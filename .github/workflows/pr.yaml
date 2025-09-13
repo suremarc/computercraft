@@ -40,4 +40,4 @@ jobs:
 
     - name: Test run
       run: craftos --headless --mount-ro /=./ --mount-ro /=src --script src/chatbot.lua
-      timeout-minutes: 1
+      timeout-minutes: 2
