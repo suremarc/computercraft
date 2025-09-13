@@ -1,3 +1,7 @@
+local BOT_NAME = 'Axiom'
+
+local HTTP_TIMEOUT_SECS = 60 -- 1m
+
 local logger = {
     errlog = fs.open('errors.log', 'a')
 }
@@ -9,13 +13,6 @@ function logger:error(msg)
     end
 
     error(msg)
-end
-
-local HTTP_TIMEOUT_SECS = 60 -- 1m
-
-local chatBox = peripheral.wrap 'top'
-if not chatBox then
-    error("No chatBox peripheral found")
 end
 
 local MessageSink = {
@@ -125,7 +122,6 @@ function DiscordHook:sendMessage(sender, message, target)
     resp.close()
 end
 
-local BOT_NAME = 'Axiom'
 function handleEvent(model, username, message, uuid, isHidden)
     if string.find(message:lower(), BOT_NAME:lower(), nil, true) then
         print('<' .. username .. '>: ' .. message)
@@ -238,15 +234,6 @@ local Message = {
         }
     }
 }
-
-function Message:serializeTextComponent()
-    local result, err = textutils.serializeJSON(paragraph, { unicode_strings = true })
-    if not result then
-        logger:error("Failed to serialize text component: " .. err)
-    end
-
-    return
-end
 
 --[[
     @param {http.Response} resp
@@ -557,10 +544,6 @@ function OpenAi:readReplyStream(resp)
     end
 
     self.logger:error 'Error: reached end of stream without receiving a complete response'
-end
-
-function sendMsgToDiscord(user, msg)
-    print("Sending message to Discord: " .. msg)
 end
 
 do
