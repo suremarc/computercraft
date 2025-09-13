@@ -559,10 +559,10 @@ function logger:error(msg, opts)
         msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
     end
 
-    if opts.suppress then
-        io.stderr:write(msg .. '\n')
-    else
+    if opts.fatal then
         error(msg)
+    else
+        io.stderr:write(msg .. '\n')
     end
 end
 
@@ -595,8 +595,6 @@ while true do
         goto continue
     end
 
-    local target = isHidden and username or nil
-
     local reply
     local success, ret = pcall(model.getReply, model, username, message)
     if not success then
@@ -606,7 +604,7 @@ while true do
         reply = ret
     end
 
-    local success, err = pcall(sink.sendMessage, sink, BOT_NAME, reply, username)
+    local success, err = pcall(sink.sendMessage, sink, BOT_NAME, reply, isHidden and username or nil)
     if not success then
         logger:error(err, { suppress = true })
     end
