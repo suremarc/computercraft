@@ -30,7 +30,7 @@ jobs:
       uses: tecolicom/actions-use-apt-tools@v1
       with:
         repos: ppa:jackmacwindows/ppa
-        tools: craftos-pc
+        tools: craftos-pc libhpdf-dev # why is libhpdf needed??
     
     - name: Load secrets
       uses: 0ndt/envfile@v2
