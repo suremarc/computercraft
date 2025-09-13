@@ -27,7 +27,7 @@ jobs:
       run: printf '%s' '${{ secrets.ENVFILE }}' > .env
 
     - name: Run tests
-      run: craftos --headless --mount-ro /=./ --exec chatbot || echo $? > ~/.retval
+      run: craftos --headless --mount-ro /=./ --script src/chatbot.lua || echo $? > ~/.retval
       continue-on-error: true
       timeout-minutes: 2
     
