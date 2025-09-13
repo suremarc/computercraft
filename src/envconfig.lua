@@ -1,5 +1,10 @@
 local envConfig = {}
 
+if not fs.exists '.env' then
+    print '.env file not found, returning empty envconfig'
+    return envConfig
+end
+
 for line in io.lines '.env' do
     local key, value = line:match '^%s*([%w_]+)%s*=%s*(.-)%s*$'
     if key and value then
