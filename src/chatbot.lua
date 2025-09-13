@@ -580,8 +580,6 @@ end
 
 --[[  Main program  ]]
 
-loadEnvConfig()
-
 local logger = {
     errlog = fs.open('errors.log', 'a')
 }
