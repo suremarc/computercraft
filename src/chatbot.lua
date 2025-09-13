@@ -1,6 +1,15 @@
-local BOT_NAME = 'Axiom'
+local config = {}
 
-local HTTP_TIMEOUT_SECS = 60 -- 1m
+function loadConfig()
+    for line in io.lines '.env' do
+        local key, value = line:match '^%s*([%w_]+)%s*=%s*(.-)%s*$'
+        if key and value then
+            config[key] = value
+        end
+    end
+
+    config.HTTP_TIMEOUT_SECS = tonumber(config.HTTP_TIMEOUT_SECS) or 60
+end
 
 local MessageSink = {}
 
@@ -53,20 +62,13 @@ function ChatBox:sendMessage(sender, message, target)
 end
 
 local DiscordHook = setmetatable(
-    { hook_url = nil, hook_url_file = 'discord_webhook.txt' },
+    { hook_url = nil },
     { __index = MessageSink }
 )
 
 function DiscordHook:init()
-    local f = fs.open(self.hook_url_file, 'r')
-    if not f then
-        error("Failed to open " .. self.hook_url_file .. " for reading")
-    end
-    local url = f.readAll()
-    f.close()
-
+    local url = config.DISCORD_WEBHOOK_URL
     assert(url and url ~= '', "Discord webhook URL is empty")
-
     self.hook_url = url
 end
 
@@ -90,7 +92,7 @@ function DiscordHook:sendMessage(sender, message, target)
         textutils.serializeJSON(
             {
                 content = text,
-                username = BOT_NAME,
+                username = config.BOT_NAME,
             },
             { unicode_strings = true }
         ),
@@ -288,15 +290,7 @@ function Model:headers(body)
 end
 
 function Model:apiKey()
-    local f = fs.open(self.apiKeyFile, 'r')
-    if not f then
-        error("Failed to open " .. self.apiKeyFile .. " for reading")
-    end
-    local key = f.readAll()
-    f.close()
-
-    assert(key and key ~= '', self.name .. " API key is empty")
-    return key
+    error 'unimplemented'
 end
 
 function Model:getOrCreateConversation()
@@ -317,17 +311,22 @@ function Model:getOrCreateConversation()
 end
 
 function Model:getReply(user, msg, _role)
-    error("unimplemented")
+    error 'unimplemented'
 end
 
 local Mistral = setmetatable(
     {
         name = 'Mistral',
-        apiKeyFile = 'mistral_api_key.txt',
         conversationIdFile = 'mistral_conversation_id.txt',
     },
     { __index = Model }
 )
+
+function Mistral:apiKey()
+    local key = config.MISTRAL_API_KEY
+    assert(key and key ~= '', "Mistral API key is empty")
+    return key
+end
 
 function Mistral:createConversation()
     local body = textutils.serializeJSON {
@@ -354,7 +353,7 @@ function Mistral:createConversation()
         url = 'https://api.mistral.ai/v1/conversations',
         body = body,
         headers = self:headers(body),
-        timeout = HTTP_TIMEOUT_SECS
+        timeout = config.HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -396,7 +395,7 @@ function Mistral:getReply(user, msg, _role)
         url = 'https://api.mistral.ai/v1/conversations/' .. self:getOrCreateConversation(),
         body = body,
         headers = self:headers(body),
-        timeout = HTTP_TIMEOUT_SECS
+        timeout = config.HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -428,11 +427,16 @@ end
 local OpenAi = setmetatable(
     {
         name = 'OpenAI',
-        apiKeyFile = 'openai_api_key.txt',
         conversationIdFile = 'openai_conversation_id.txt',
     },
     { __index = Model }
 )
+
+function OpenAi:apiKey()
+    local key = config.OPENAI_API_KEY
+    assert(key and key ~= '', "OpenAI API key is empty")
+    return key
+end
 
 function OpenAi:createConversation()
     local body = textutils.serializeJSON {
@@ -450,7 +454,7 @@ function OpenAi:createConversation()
         url = 'https://api.openai.com/v1/conversations',
         body = body,
         headers = self:headers(body),
-        timeout = HTTP_TIMEOUT_SECS
+        timeout = config.HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -482,6 +486,13 @@ function OpenAi:getReply(user, msg, role)
         tools = {
             { ['type'] = 'web_search' },
             { ['type'] = 'code_interpreter', container = { ['type'] = 'auto' } },
+            -- WIP
+            -- {
+            --     ['type'] = 'mcp',
+            --     server_label = 'github',
+            --     server_description = 'ComputerCraft GitHub code, including the code for this bot',
+            --     server_url = 'https://api.githubcopilot.com/mcp/'
+            -- }
         },
         input = {
             {
@@ -509,7 +520,7 @@ function OpenAi:getReply(user, msg, role)
         url = 'https://api.openai.com/v1/responses',
         body = body,
         headers = self:headers(body),
-        timeout = HTTP_TIMEOUT_SECS
+        timeout = config.HTTP_TIMEOUT_SECS
     }
 
     if not resp then
@@ -549,6 +560,10 @@ function OpenAi:readReplyStream(resp)
     error 'Error: reached end of stream without receiving a complete response'
 end
 
+--[[  Main program  ]]
+
+loadConfig()
+
 local logger = {
     errlog = fs.open('errors.log', 'a')
 }
@@ -576,12 +591,12 @@ do
 
     local success, ret = pcall(model.getReply, model, 'crazypitlord', 'Wake up', 'system')
     if not success then
-        logger:error(ret)
+        logger:error(ret, { fatal = true })
     end
 
-    local success, err = pcall(sink.sendMessage, sink, BOT_NAME, ret)
+    local success, err = pcall(sink.sendMessage, sink, config.BOT_NAME, ret)
     if not success then
-        logger:error(err)
+        logger:error(err, { fatal = true })
     end
 
     print("Health check successful. Received reply from " .. model.name)
@@ -591,7 +606,7 @@ print("Listening to chat")
 while true do
     local event, username, message, uuid, isHidden = os.pullEvent 'chat'
 
-    if not string.find(message:lower(), BOT_NAME:lower(), nil, true) then
+    if not string.find(message:lower(), config.BOT_NAME:lower(), nil, true) then
         goto continue
     end
 
@@ -600,15 +615,15 @@ while true do
     local reply
     local success, ret = pcall(model.getReply, model, username, message)
     if not success then
-        logger:error(ret, { suppress = true })
+        logger:error(ret)
         reply = { paragraphs = { { { text = "Error processing request. Check logs" } } } }
     else
         reply = ret
     end
 
-    local success, err = pcall(sink.sendMessage, sink, BOT_NAME, reply, isHidden and username or nil)
+    local success, err = pcall(sink.sendMessage, sink, config.BOT_NAME, reply, isHidden and username or nil)
     if not success then
-        logger:error(err, { suppress = true })
+        logger:error(err)
     end
 
     ::continue::
