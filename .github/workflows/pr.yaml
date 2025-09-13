@@ -9,11 +9,14 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - name: Install deps
+    - name: Add third-party repository
       run: |
         sudo add-apt-repository ppa:jackmacwindows/ppa && \
-        sudo apt-get -y -qq update && \
-        sudo apt-get -y -qq install craftos-pc/jackmacwindows
+        sudo apt-get -y -qq update
+    
+    - uses: awalsh128/cache-apt-pkgs-action@latest
+      with: 
+        packages: craftos-pc
     
     - name: Checkout
       uses: actions/checkout@v5
