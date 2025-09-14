@@ -120,7 +120,7 @@ function DiscordHook:sendMessage(_sender, message, target)
     local resp, err, errResp = http.post(
         self.hook_url .. (isTestEnvironment() and '?thread_id=' .. envConfig.DISCORD_TEST_THREAD_ID or ''),
         table.concat(formData, '\r\n'),
-        { ['Content-Type'] = 'multipart/form-data' }
+        { ['Content-Type'] = 'multipart/form-data; boundary=boundary' }
     )
 
     if not resp then
@@ -529,7 +529,7 @@ function OpenAI:getReply(user, msg, role)
         tools = {
             { ['type'] = 'web_search' },
             { ['type'] = 'code_interpreter', container = { ['type'] = 'auto' } },
-            { ['type'] = 'image_generation' }
+            { ['type'] = 'image_generation' },
             -- WIP
             -- {
             --     ['type'] = 'mcp',
@@ -583,7 +583,7 @@ function OpenAI:readReplyStream(resp)
     local outputs = {}
 
     local completed = {
-        paragraphs = {}
+        paragraphs = {},
         images = {}
     }
 
