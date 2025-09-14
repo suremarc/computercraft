@@ -89,37 +89,41 @@ function DiscordHook:sendMessage(_sender, message, target)
     local mainBody = {
         content = text,
         username = envConfig.BOT_NAME,
-        attachments = {}
     }
 
     local formData = {
-        'Content-Disposition: form-data; name="payload_json"',
-        'Content-Type: application/json',
-        '',
+        '\r\n--boundary',
+        '\nContent-Disposition: form-data; name="payload_json"',
+        '\nContent-Type: application/json',
+        '\n',
+        '\nJSON PLACEHOLDER',
     }
 
-    table.insert(formData, 'JSON PLACEHOLDER')
-    table.insert(formData, '--boundary')
-
     for i, image in ipairs(message.images) do
+        if mainBody.attachments == nil then
+            mainBody.attachments = {}
+        end
+
         table.insert(mainBody.attachments, {
             id = i - 1,
             filename = image.filename,
         })
 
+        table.insert(formData, '\r\n--boundary')
         table.insert(formData,
-            'Content-Disposition: form-data; name="files[' .. (i - 1) .. ']"; filename="' .. image.filename .. '"')
-        table.insert(formData, 'Content-Type: image/png')
-        table.insert(formData, '')
-        table.insert(formData, 'data:image/png;base64,' .. image.data)
-        table.insert(formData, '--boundary')
+            '\nContent-Disposition: form-data; name="files[' .. (i - 1) .. ']"; filename="' .. image.filename .. '"')
+        table.insert(formData, '\nContent-Type: image/png')
+        table.insert(formData, '\n')
+        table.insert(formData, '\ndata:image/png;base64,' .. image.data)
     end
 
-    formData[4] = textutils.serializeJSON(mainBody, { unicode_strings = true })
+    table.insert(formData, '\r\n--boundary--')
+
+    formData[5] = '\n' .. textutils.serializeJSON(mainBody, { unicode_strings = true })
 
     local resp, err, errResp = http.post(
         self.hook_url .. (isTestEnvironment() and '?thread_id=' .. envConfig.DISCORD_TEST_THREAD_ID or ''),
-        table.concat(formData, '\r\n'),
+        table.concat(formData),
         { ['Content-Type'] = 'multipart/form-data; boundary=boundary' }
     )
 
@@ -299,8 +303,6 @@ local function serverSentEvents(resp)
 
             res[tag] = payload
         end
-
-        print 'got sse'
 
         return res
     end
