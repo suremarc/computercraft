@@ -588,7 +588,7 @@ function OpenAI:readReplyStream(resp)
     }
 
     for event in serverSentEvents(resp) do
-        local object, err = textutils.unserializeJSON(event.data)
+        local object, err = event.data and textutils.unserializeJSON(event.data)
         if err then
             error("Failed to parse event data: " .. err .. "\nData: " .. (event.data or "nil"))
         end
