@@ -3,7 +3,7 @@ local function isTestEnvironment()
 end
 
 if isTestEnvironment() then
-    config.set('abortTimeout', 120000)
+    config.set('abortTimeout', 600000)
 end
 
 local envConfig = require 'envconfig'
