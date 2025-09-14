@@ -3,7 +3,7 @@ local function isTestEnvironment()
 end
 
 if isTestEnvironment() then
-    config.set('abortTimeout', 600000)
+    config.set('abortTimeout', 120000)
 end
 
 local envConfig = require 'envconfig'
@@ -280,11 +280,17 @@ local Message = {
 local function serverSentEvents(resp)
     assert(resp.getResponseHeaders()['Content-Type']:find 'text/event%-stream', "Response is not SSE")
 
+    local done = false
     return function()
+        if done then return end
+
         local res = {}
         while true do
             local line = resp.readLine()
-            if not line then break end
+            if not line then
+                done = true
+                break
+            end
 
             local tag, payload = line:match '^(%w+):?%s*(.-)%s*$'
             if not tag then
