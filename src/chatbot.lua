@@ -113,8 +113,9 @@ function DiscordHook:sendMessage(_sender, message, target)
         table.insert(formData,
             '\nContent-Disposition: form-data; name="files[' .. (i - 1) .. ']"; filename="' .. image.filename .. '"')
         table.insert(formData, '\nContent-Type: image/png')
+        table.insert(formData, '\nContent-Transfer-Encoding: base64')
         table.insert(formData, '\n')
-        table.insert(formData, '\ndata:image/png;base64,' .. image.data)
+        table.insert(formData, '\n' .. image.data)
     end
 
     table.insert(formData, '\r\n--boundary--')
