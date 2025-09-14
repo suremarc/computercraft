@@ -86,16 +86,46 @@ function DiscordHook:sendMessage(_sender, message, target)
 
     local text = table.concat(textPieces)
 
+    local mainBody = {
+        content = text,
+        username = envConfig.BOT_NAME,
+    }
+
+    local formData = {
+        '\r\n--boundary',
+        '\nContent-Disposition: form-data; name="payload_json"',
+        '\nContent-Type: application/json',
+        '\n',
+        '\nJSON PLACEHOLDER',
+    }
+
+    for i, image in ipairs(message.images) do
+        if mainBody.attachments == nil then
+            mainBody.attachments = {}
+        end
+
+        table.insert(mainBody.attachments, {
+            id = i - 1,
+            filename = image.filename,
+        })
+
+        table.insert(formData, '\r\n--boundary')
+        table.insert(formData,
+            '\nContent-Disposition: form-data; name="files[' .. (i - 1) .. ']"; filename="' .. image.filename .. '"')
+        table.insert(formData, '\nContent-Type: image/png')
+        table.insert(formData, '\nContent-Transfer-Encoding: base64')
+        table.insert(formData, '\n')
+        table.insert(formData, '\n' .. image.data)
+    end
+
+    table.insert(formData, '\r\n--boundary--')
+
+    formData[5] = '\n' .. textutils.serializeJSON(mainBody, { unicode_strings = true })
+
     local resp, err, errResp = http.post(
         self.hook_url .. (isTestEnvironment() and '?thread_id=' .. envConfig.DISCORD_TEST_THREAD_ID or ''),
-        textutils.serializeJSON(
-            {
-                content = text,
-                username = envConfig.BOT_NAME,
-            },
-            { unicode_strings = true }
-        ),
-        { ['Content-Type'] = 'application/json' }
+        table.concat(formData),
+        { ['Content-Type'] = 'multipart/form-data; boundary=boundary' }
     )
 
     if not resp then
@@ -252,14 +282,20 @@ local Message = {
 --[[
     @param {http.Response} resp
 ]]
-local function serverSideEvents(resp)
+local function serverSentEvents(resp)
     assert(resp.getResponseHeaders()['Content-Type']:find 'text/event%-stream', "Response is not SSE")
 
+    local done = false
     return function()
+        if done then return end
+
         local res = {}
         while true do
             local line = resp.readLine()
-            if not line then break end
+            if not line then
+                done = true
+                break
+            end
 
             local tag, payload = line:match '^(%w+):?%s*(.-)%s*$'
             if not tag then
@@ -442,7 +478,7 @@ function Mistral:getReply(user, msg, _role)
     return reply
 end
 
-local OpenAi = setmetatable(
+local OpenAI = setmetatable(
     {
         name = 'OpenAI',
         conversationIdFile = 'openai_conversation_id.txt',
@@ -450,13 +486,13 @@ local OpenAi = setmetatable(
     { __index = Model }
 )
 
-function OpenAi:apiKey()
+function OpenAI:apiKey()
     local key = envConfig.OPENAI_API_KEY
     assert(key and key ~= '', "OpenAI API key is empty")
     return key
 end
 
-function OpenAi:createConversation()
+function OpenAI:createConversation()
     local body = textutils.serializeJSON {
         items = {
             {
@@ -496,7 +532,7 @@ function OpenAi:createConversation()
     return res.id
 end
 
-function OpenAi:getReply(user, msg, role)
+function OpenAI:getReply(user, msg, role)
     local body = textutils.serializeJSON {
         conversation = self:getOrCreateConversation(),
         model = isTestEnvironment() and 'gpt-5-nano' or 'gpt-5',
@@ -504,6 +540,7 @@ function OpenAi:getReply(user, msg, role)
         tools = {
             { ['type'] = 'web_search' },
             { ['type'] = 'code_interpreter', container = { ['type'] = 'auto' } },
+            { ['type'] = 'image_generation' },
             -- WIP
             -- {
             --     ['type'] = 'mcp',
@@ -553,29 +590,59 @@ function OpenAi:getReply(user, msg, role)
     return self:readReplyStream(resp)
 end
 
-function OpenAi:readReplyStream(resp)
-    local itemToListen
+function OpenAI:readReplyStream(resp)
+    local outputs = {}
 
-    for event in serverSideEvents(resp) do
+    local completed = {
+        paragraphs = {},
+        images = {}
+    }
+
+    for event in serverSentEvents(resp) do
+        local object, err
+        if event.data then
+            object, err = textutils.unserializeJSON(event.data)
+        end
+
+        if err then
+            error("Failed to parse event data: " .. err .. "\nData: " .. (event.data or "nil"))
+        end
+
         if event.event == 'error' then
             error("Error event from OpenAI: " .. (event.data or "no error details"))
         elseif event.event == 'response.output_item.added' then
-            local object = textutils.unserializeJSON(event.data)
-            if object.item.type == 'message' and object.item.role == 'assistant' then
-                itemToListen = object.item.id
-            end
+            outputs[object.output_index + 1] = object
         elseif event.event == 'response.output_text.done' then
-            local object = textutils.unserializeJSON(event.data)
-            if object.item_id == itemToListen then
-                resp.readAll()
-                resp.close()
+            local original = outputs[object.output_index + 1]
+            if original.item.type == 'message' and original.item.role == 'assistant' then
+                local payload, err = textutils.unserializeJSON(object.text)
+                if err then
+                    error("Failed to parse output_text: " .. err .. "\nText: " .. (object.text or "nil"))
+                end
 
-                return textutils.unserializeJSON(object.text)
+                completed.paragraphs = payload.paragraphs
             end
+        elseif event.event == 'response.image_generation_call.partial_image' then
+            local output = outputs[object.output_index + 1]
+            if output.parts == nil then
+                output.parts = {}
+            end
+
+            output.parts[object.partial_image_index + 1] = object.partial_image_b64
+        elseif event.event == 'response.image_generation_call.done' then
+            local output = outputs[object.output_index + 1]
+            output.result = table.concat(output.parts or {})
+            completed.images[object.output_index + 1] = {
+                filename = object.item_id .. '.png',
+                data = output.result
+            }
         end
     end
 
-    error 'Error: reached end of stream without receiving a complete response'
+    resp.readAll()
+    resp.close()
+
+    return completed
 end
 
 --[[  Main program  ]]
@@ -602,7 +669,7 @@ end
 local sink = isTestEnvironment() and MultiSink.new(DiscordHook) or MultiSink.new(DiscordHook, ChatBox)
 sink:init()
 
-local model = OpenAi
+local model = OpenAI
 
 do
     print("Health check. Sending wake up message to " .. model.name)
