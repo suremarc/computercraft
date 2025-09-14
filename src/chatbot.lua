@@ -99,7 +99,7 @@ function DiscordHook:sendMessage(_sender, message, target)
         '\nJSON PLACEHOLDER',
     }
 
-    for i, image in ipairs(message.images) do
+    for i, image in ipairs(message.images or {}) do
         if mainBody.attachments == nil then
             mainBody.attachments = {}
         end
@@ -658,7 +658,7 @@ function logger:error(msg, opts)
         msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
     end
 
-    if opts.fatal then
+    if opts and opts.fatal then
         error(msg)
     else
         io.stderr:write(msg .. '\n')

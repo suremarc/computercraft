@@ -14,6 +14,6 @@ end
 
 envConfig.BOT_NAME = envConfig.BOT_NAME or 'Axiom'
 envConfig.DISCORD_TEST_THREAD_ID = envConfig.DISCORD_TEST_THREAD_ID or '1416490212892217378'
-envConfig.HTTP_TIMEOUT_SECS = tonumber(envConfig.HTTP_TIMEOUT_SECS) or 60
+envConfig.HTTP_TIMEOUT_SECS = tonumber(envConfig.HTTP_TIMEOUT_SECS) or 0 -- unlimited
 
 return envConfig
