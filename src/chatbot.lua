@@ -600,9 +600,9 @@ function OpenAI:readReplyStream(resp)
         elseif event.event == 'response.output_text.done' then
             local original = outputs[object.output_index + 1]
             if original.item.type == 'message' and original.item.role == 'assistant' then
-                local payload, err = textutils.unserializeJSON(object.payload)
+                local payload, err = textutils.unserializeJSON(object.text)
                 if err then
-                    error("Failed to parse output_text payload: " .. err .. "\nPayload: " .. (object.payload or "nil"))
+                    error("Failed to parse output_text: " .. err .. "\nText: " .. (object.text or "nil"))
                 end
 
                 completed.paragraphs = payload.paragraphs
