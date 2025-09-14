@@ -122,11 +122,14 @@ function DiscordHook:sendMessage(_sender, message, target)
 
     formData[5] = '\n' .. textutils.serializeJSON(mainBody, { unicode_strings = true })
 
-    local resp, err, errResp = http.post(
-        self.hook_url .. (isTestEnvironment() and '?thread_id=' .. envConfig.DISCORD_TEST_THREAD_ID or ''),
-        table.concat(formData),
-        { ['Content-Type'] = 'multipart/form-data; boundary=boundary' }
-    )
+    local body = table.concat(formData)
+
+    local resp, err, errResp = http.post {
+        url = self.hook_url .. (isTestEnvironment() and '?thread_id=' .. envConfig.DISCORD_TEST_THREAD_ID or ''),
+        body = body,
+        headers = { ['Content-Type'] = 'multipart/form-data; boundary=boundary' },
+        timeout = envConfig.HTTP_TIMEOUT_SECS
+    }
 
     if not resp then
         local errText = ""
@@ -611,10 +614,20 @@ function OpenAI:readReplyStream(resp)
         if event.event == 'error' then
             error("Error event from OpenAI: " .. (event.data or "no error details"))
         elseif event.event == 'response.output_item.added' then
-            outputs[object.output_index + 1] = object
+            outputs[object.output_index + 1] = object.item
+        elseif event.event == 'response.output_item.done' then
+            outputs[object.output_index + 1] = object.item
+
+            local output = outputs[object.output_index + 1]
+            if output.type == 'image_generation_call' then
+                table.insert(completed.images, {
+                    filename = output.id .. '.png',
+                    data = output.result
+                })
+            end
         elseif event.event == 'response.output_text.done' then
             local original = outputs[object.output_index + 1]
-            if original.item.type == 'message' and original.item.role == 'assistant' then
+            if original.type == 'message' and original.role == 'assistant' then
                 local payload, err = textutils.unserializeJSON(object.text)
                 if err then
                     error("Failed to parse output_text: " .. err .. "\nText: " .. (object.text or "nil"))
@@ -622,20 +635,6 @@ function OpenAI:readReplyStream(resp)
 
                 completed.paragraphs = payload.paragraphs
             end
-        elseif event.event == 'response.image_generation_call.partial_image' then
-            local output = outputs[object.output_index + 1]
-            if output.parts == nil then
-                output.parts = {}
-            end
-
-            output.parts[object.partial_image_index + 1] = object.partial_image_b64
-        elseif event.event == 'response.image_generation_call.done' then
-            local output = outputs[object.output_index + 1]
-            output.result = table.concat(output.parts or {})
-            completed.images[object.output_index + 1] = {
-                filename = object.item_id .. '.png',
-                data = output.result
-            }
         end
     end
 
@@ -658,7 +657,7 @@ function logger:error(msg, opts)
         msg = msg:sub(1, 100) .. '\nFull error written to errors.log'
     end
 
-    if opts.fatal then
+    if opts and opts.fatal then
         error(msg)
     else
         io.stderr:write(msg .. '\n')
@@ -705,7 +704,7 @@ while true do
     local success, ret = pcall(model.getReply, model, username, message)
     if not success then
         logger:error(ret)
-        reply = { paragraphs = { { { text = "Error processing request. Check logs" } } } }
+        reply = { paragraphs = { { { text = "Error processing request. Check logs" } } }, images = {} }
     else
         reply = ret
     end
