@@ -300,6 +300,8 @@ local function serverSentEvents(resp)
             res[tag] = payload
         end
 
+        print 'got sse'
+
         return res
     end
 end
