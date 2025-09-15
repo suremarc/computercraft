@@ -45,6 +45,7 @@ jobs:
         secrets: ${{ toJSON(secrets) }}
         no_env: true
         exclude: "github_token"
+        file: computer/.env
 
     - name: Test run
       run: craftos --headless --mount-ro /=./ --script src/chatbot.lua
