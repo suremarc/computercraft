@@ -65,4 +65,4 @@ jobs:
 
     - name: Verify deployment
       if: github.event_name != 'pull_request'
-      run: kubectl rollout status deployment/<deployment_name>
+      run: kubectl rollout status deployment/computercraft-controller -n computercraft
