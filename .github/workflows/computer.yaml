@@ -21,7 +21,7 @@ jobs:
     - name: Lint
       uses: judaew/luacheck-action@v0.2.2
       with:
-        targets: "src"
+        targets: "computer"
 
   test:
     runs-on: ubuntu-22.04

@@ -6,7 +6,7 @@ if isTestEnvironment() then
     config.set('abortTimeout', 120000)
 end
 
-local envConfig = require 'envconfig'
+local envConfig = require 'src/envconfig'
 
 local MessageSink = {}
 
