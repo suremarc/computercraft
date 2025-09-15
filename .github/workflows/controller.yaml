@@ -48,6 +48,7 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
+        context: controller
         push: ${{ github.event_name != 'pull_request' }}
         tags: ghcr.io/suremarc/computercraft-controller:latest
         build-args: |
