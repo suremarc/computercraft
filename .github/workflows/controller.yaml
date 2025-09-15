@@ -1,0 +1,54 @@
+name: Controller PR Checks
+on:
+  pull_request:
+    paths: [ controller/**, .github/workflows/controller.yaml ]
+  push:
+    branches: [ master ]
+
+defaults:
+  run:
+    shell: bash
+    working-directory: ./controller
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [fmt, clippy, test]
+        include:
+        - target: fmt
+          args: -- --check
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Install Mold
+      uses: rui314/setup-mold@v1
+
+    - run: cargo ${{ matrix.target }} ${{ matrix.args || '' }}
+
+  docker:
+    runs-on: ubuntu-latest
+    permissions: 
+      packages: write
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ghcr.io/suremarc/computercraft-controller:latest
+        build-args: |
+          RELEASE_BUILD=${{ github.event_name != 'pull_request' }}

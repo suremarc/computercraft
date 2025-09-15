@@ -1,12 +1,14 @@
-name: PR Checks
+name: Computer PR Checks
 on:
   pull_request:
+    paths: [ computer/**, .github/workflows/computer.yaml ]
   push:
     branches: [ master ]
 
 defaults:
   run:
     shell: bash
+    working-directory: ./computer
 
 jobs:
   lint:
@@ -44,5 +46,5 @@ jobs:
         exclude: "github_token"
 
     - name: Test run
-      run: craftos --headless --mount-ro /=./ --mount-ro /=src --script src/chatbot.lua
+      run: craftos --headless --mount-ro /=./ --script src/chatbot.lua
       timeout-minutes: 2

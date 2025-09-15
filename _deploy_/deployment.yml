@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: computercraft-controller
+  namespace: computercraft
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: computercraft-controller
+  metadata:
+    labels:
+      app: computercraft-controller
+  spec:
+    serviceAccountName: computercraft-controller
+    containers:
+      - name: computercraft-controller
+        image: ghcr.io/suremarc/computercraft/controller:latest
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
