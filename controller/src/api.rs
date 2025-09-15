@@ -16,6 +16,7 @@ pub struct ComputerSpec {
     #[garde(skip)]
     pub kind: ComputerKind,
     #[garde(skip)]
+    #[serde(flatten)]
     pub state: ComputerInternalState,
 }
 
