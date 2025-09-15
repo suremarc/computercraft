@@ -6,7 +6,7 @@ if isTestEnvironment() then
     config.set('abortTimeout', 120000)
 end
 
-local envConfig = require 'envconfig'
+local envConfig = require 'src/envconfig'
 
 local MessageSink = {}
 
@@ -315,7 +315,7 @@ end
 local Model = {}
 
 function Model:prompt()
-    local f = fs.open('prompt.md', 'r')
+    local f = fs.open('assets/prompt.md', 'r')
     if not f then
         error("Failed to open prompt.md for reading")
     end

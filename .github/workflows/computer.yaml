@@ -1,12 +1,14 @@
-name: PR Checks
+name: Computer PR Checks
 on:
   pull_request:
+    paths: [ computer/**, .github/workflows/computer.yaml ]
   push:
     branches: [ master ]
 
 defaults:
   run:
     shell: bash
+    working-directory: ./computer
 
 jobs:
   lint:
@@ -19,7 +21,8 @@ jobs:
     - name: Lint
       uses: judaew/luacheck-action@v0.2.2
       with:
-        targets: "src"
+        targets: "computer"
+        args: "--config computer/.luacheckrc"
 
   test:
     runs-on: ubuntu-22.04
@@ -42,7 +45,8 @@ jobs:
         secrets: ${{ toJSON(secrets) }}
         no_env: true
         exclude: "github_token"
+        file: computer/.env
 
     - name: Test run
-      run: craftos --headless --mount-ro /=./ --mount-ro /=src --script src/chatbot.lua
+      run: craftos --headless --mount-ro /=./ --script src/chatbot.lua
       timeout-minutes: 2

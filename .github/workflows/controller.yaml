@@ -1,0 +1,68 @@
+name: Controller PR Checks
+on:
+  pull_request:
+    paths: [ controller/**, .github/workflows/controller.yaml ]
+  push:
+    branches: [ master ]
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./controller
+    strategy:
+      matrix:
+        target: [fmt, clippy, test]
+        include:
+        - target: fmt
+          args: -- --check
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Install Mold
+      uses: rui314/setup-mold@v1
+
+    - run: cargo ${{ matrix.target }} ${{ matrix.args || '' }}
+
+  docker:
+    runs-on: ubuntu-latest
+    permissions: 
+      packages: write
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+    - name: Log in to DigitalOcean Container Registry with short-lived credentials
+      run: doctl registry login --expiry-seconds 1200
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: controller
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: registry.digitalocean.com/suremarc/computercraft-controller:${{ github.sha }},registry.digitalocean.com/suremarc/computercraft-controller:latest
+        build-args: |
+          RELEASE_BUILD=${{ github.event_name != 'pull_request' }}
+    
+    - name: Save DigitalOcean kubeconfig with short-lived credentials
+      run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 sms
+
+    - name: Deploy to DigitalOcean Kubernetes
+      run: kubectl apply ${{ github.event_name == 'pull_request' && '--dry-run=server' || '' }} -f _deploy_
+
+    - name: Verify deployment
+      if: github.event_name != 'pull_request'
+      run: kubectl rollout status deployment/<deployment_name>
