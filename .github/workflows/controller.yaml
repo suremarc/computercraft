@@ -1,7 +1,7 @@
 name: Controller PR Checks
 on:
   pull_request:
-    paths: [ controller/**, .github/workflows/controller.yaml , _deploy_/** ]
+    paths: [ controller/**, .github/workflows/controller.yaml, _deploy_/** ]
   push:
     branches: [ master ]
 
