@@ -22,6 +22,7 @@ jobs:
       uses: judaew/luacheck-action@v0.2.2
       with:
         targets: "computer"
+        args: "--config computer/.luacheckrc"
 
   test:
     runs-on: ubuntu-22.04
