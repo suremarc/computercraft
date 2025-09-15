@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use kube::{
     Api, Client,
     api::{ListParams, Patch, PatchParams},
-    runtime::{controller::Action},
+    runtime::controller::Action,
 };
 use serde_json::json;
 use tracing::{Level, instrument};
@@ -42,7 +42,10 @@ pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Re
     Ok(Action::requeue(Duration::from_secs(10)))
 }
 
-async fn compute_cluster_diff_and_set_statuses(computers: &Api<Computer>, cluster: &Cluster) -> Result<Vec<Command>> {
+async fn compute_cluster_diff_and_set_statuses(
+    computers: &Api<Computer>,
+    cluster: &Cluster,
+) -> Result<Vec<Command>> {
     let cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     // List all computers belonging to this cluster
@@ -57,13 +60,24 @@ async fn compute_cluster_diff_and_set_statuses(computers: &Api<Computer>, cluste
 
     for computer in computers_for_cluster {
         // TODO: use label selectors
-        if !computer.metadata.owner_references.as_ref().is_some_and(|owners| owners.iter().any(|o| Some(o.uid.as_str()) == cluster.metadata.uid.as_deref())) {
+        if !computer
+            .metadata
+            .owner_references
+            .as_ref()
+            .is_some_and(|owners| {
+                owners
+                    .iter()
+                    .any(|o| Some(o.uid.as_str()) == cluster.metadata.uid.as_deref())
+            })
+        {
             // Skip computers not owned by this cluster
             continue;
         }
 
         if computer.status.as_ref().map(|stat| &stat.state) != Some(&computer.spec.state) {
-            commands.push(Command::Wake { computer_id: computer.spec.id.clone() });
+            commands.push(Command::Wake {
+                computer_id: computer.spec.id.clone(),
+            });
             continue;
         }
 
@@ -88,7 +102,9 @@ async fn compute_cluster_diff_and_set_statuses(computers: &Api<Computer>, cluste
                     .await?;
 
                 if !is_online {
-                    commands.push(Command::Wake { computer_id: computer.spec.id.clone() });
+                    commands.push(Command::Wake {
+                        computer_id: computer.spec.id.clone(),
+                    });
                 }
             }
         }

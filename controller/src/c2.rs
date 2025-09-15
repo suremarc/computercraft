@@ -2,7 +2,12 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use kube::{Api, runtime::reflector::ObjectRef};
-use rocket::{State, futures::{SinkExt, channel::mpsc}, get, http::Status};
+use rocket::{
+    State,
+    futures::{SinkExt, channel::mpsc},
+    get,
+    http::Status,
+};
 use rocket_ws::Message;
 use serde::Serialize;
 use tokio::sync::watch::Sender;
@@ -21,7 +26,7 @@ pub struct C2Server {
     // indexed by namespace + cluster
     cluster_watchers: DashMap<(String, String), Sender<Vec<Command>>>,
     client: kube::Client,
-    
+
     cluster_listener_connected_tx: mpsc::Sender<ObjectRef<Cluster>>,
 }
 
@@ -62,9 +67,14 @@ pub async fn bridge(
         Ok(_) => {}
     }
 
-    let _ = server.cluster_listener_connected_tx.clone().send(ObjectRef::new(cluster).within(namespace)).await.inspect_err(|e| {
-        tracing::error!("Failed to notify controller of new listener: {:?}", e);
-    });
+    let _ = server
+        .cluster_listener_connected_tx
+        .clone()
+        .send(ObjectRef::new(cluster).within(namespace))
+        .await
+        .inspect_err(|e| {
+            tracing::error!("Failed to notify controller of new listener: {:?}", e);
+        });
 
     let mut recv = server.sender(namespace, cluster).subscribe();
 

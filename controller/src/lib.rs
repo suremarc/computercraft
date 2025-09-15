@@ -14,7 +14,13 @@ use kube::{
     Api, CustomResourceExt,
     runtime::{Controller, watcher},
 };
-use rocket::{Build, Rocket, fairing::AdHoc, futures::{StreamExt, channel::mpsc}, get, routes, serde::json::Json};
+use rocket::{
+    Build, Rocket,
+    fairing::AdHoc,
+    futures::{StreamExt, channel::mpsc},
+    get, routes,
+    serde::json::Json,
+};
 use thiserror::Error;
 use tokio::sync::watch::error::SendError;
 

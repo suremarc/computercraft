@@ -35,7 +35,9 @@ pub struct ComputerStatus {
     pub last_heartbeat_unix_sec: Option<i64>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, Validate, Default, JsonSchema)]
+#[derive(
+    Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, Validate, Default, JsonSchema,
+)]
 pub struct ComputerInternalState {
     #[garde(skip)]
     pub label: Option<String>,
