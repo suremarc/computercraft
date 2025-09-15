@@ -8,12 +8,13 @@ spec:
   selector:
     matchLabels:
       app: computercraft-controller
-  metadata:
-    labels:
-      app: computercraft-controller
-  spec:
-    serviceAccountName: computercraft-controller
-    containers:
+  template:
+    metadata:
+      labels:
+        app: computercraft-controller
+    spec:
+      serviceAccountName: computercraft-controller
+      containers:
       - name: computercraft-controller
         image: ghcr.io/suremarc/computercraft/controller:latest
         resources:
