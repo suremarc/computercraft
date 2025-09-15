@@ -46,7 +46,7 @@ jobs:
         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
     - name: Update deployment file
-      run: sed -i 's|<IMAGE>|registry.digitalocean.com/suremarc/computercraft-controller:'${{ github.sha }}'|' _deploy_/deployment.yml
+      run: sed -i 's|registry.digitalocean.com/suremarc/computercraft-controller:latest|registry.digitalocean.com/suremarc/computercraft-controller:'${{ github.sha }}'|' _deploy_/deployment.yml
 
     - name: Log in to DigitalOcean Container Registry with short-lived credentials
       run: doctl registry login --expiry-seconds 1200

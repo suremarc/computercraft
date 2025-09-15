@@ -16,7 +16,7 @@ spec:
       serviceAccountName: computercraft-controller
       containers:
       - name: computercraft-controller
-        image: registry.digitalocean.com/suremarc/computercraft-controller:<IMAGE>
+        image: registry.digitalocean.com/suremarc/computercraft-controller:latest
         resources:
           requests:
             memory: "128Mi"
