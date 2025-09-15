@@ -16,7 +16,7 @@ spec:
       serviceAccountName: computercraft-controller
       containers:
       - name: computercraft-controller
-        image: ghcr.io/suremarc/computercraft-controller:latest
+        image: registry.digitalocean.com/suremarc/computercraft-controller:latest
         resources:
           requests:
             memory: "128Mi"
@@ -24,3 +24,42 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "200m"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: computercraft-controller
+  namespace: computercraft
+imagePullSecrets:
+- name: suremarc
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  namespace: computercraft
+  name: computercraft-controller
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+- apiGroups: ["sms.dev"]
+  resources: ["clusters", "computers"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["sms.dev"]
+  resources: ["computers/status"]
+  verbs: ["update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  namespace: computercraft
+  name: computercraft-controller
+roleRef:
+  apiGroup: ""
+  kind: ClusterRole
+  name: computercraft-controller
+subjects:
+- kind: ServiceAccount
+  namespace: computercraft
+  name: computercraft-controller
