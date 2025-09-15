@@ -16,7 +16,7 @@ spec:
       serviceAccountName: computercraft-controller
       containers:
       - name: computercraft-controller
-        image: ghcr.io/suremarc/computercraft/controller:latest
+        image: ghcr.io/suremarc/computercraft-controller:latest
         resources:
           requests:
             memory: "128Mi"
