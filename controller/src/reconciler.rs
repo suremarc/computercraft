@@ -1,7 +1,14 @@
 use std::{sync::Arc, time::Duration};
 
+use k8s_openapi::{
+    api::{
+        core::v1::{ObjectReference, Secret, ServiceAccount},
+        rbac::v1::{ClusterRoleBinding, RoleRef, Subject},
+    },
+    apimachinery::pkg::apis::meta::v1::OwnerReference,
+};
 use kube::{
-    Api, Client,
+    Api, Client, Resource,
     api::{ListParams, Patch, PatchParams},
     runtime::controller::Action,
 };
@@ -21,12 +28,12 @@ pub struct ReconcilerCtx {
     pub c2_server: Arc<C2Server>,
 }
 
-#[instrument(level = Level::DEBUG, skip(cluster, context), fields(cluster = cluster.metadata.name.as_ref().unwrap()))]
+#[instrument(level = Level::DEBUG, skip(context))]
 pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Result<Action> {
     let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
-
     let cluster_name = cluster.metadata.name.as_deref().unwrap();
-    let control_channel = context.c2_server.sender(cluster_namespace, cluster_name);
+
+    create_cluster_rbac(&context.client, cluster.as_ref()).await?;
 
     let computers = Api::<Computer>::namespaced(context.client.clone(), cluster_namespace);
 
@@ -36,10 +43,95 @@ pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Re
         return Ok(Action::requeue(Duration::from_secs(300)));
     }
 
-    control_channel.send(commands)?;
+    context
+        .c2_server
+        .sender(cluster_namespace, cluster_name)
+        .send(commands)?;
 
     // Check again in 10 seconds
     Ok(Action::requeue(Duration::from_secs(10)))
+}
+
+/// Create a service account for computers in this cluster if it doesn't already exist
+#[instrument(level = Level::DEBUG, skip(client))]
+async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
+    let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
+    let cluster_name = cluster.metadata.name.as_deref().unwrap();
+
+    let service_accounts = Api::<ServiceAccount>::namespaced(client.clone(), cluster_namespace);
+    let cluster_role_bindings = Api::<ClusterRoleBinding>::all(client.clone()); // ClusterRoleBindings are not namespaced
+    let secrets = Api::<Secret>::namespaced(client.clone(), cluster_namespace);
+
+    let pp = PatchParams::apply(MANAGER_NAME);
+
+    let name = format!("computer-{}", cluster_name);
+
+    let cluster_as_owner_ref = owner_ref_from_object_ref(&cluster.object_ref(&()))?;
+
+    service_accounts
+        .patch(
+            &name,
+            &pp,
+            &Patch::Apply(ServiceAccount {
+                metadata: kube::api::ObjectMeta {
+                    name: Some(name.clone()),
+                    owner_references: Some(vec![cluster_as_owner_ref.clone()]),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+        )
+        .await?;
+
+    cluster_role_bindings
+        .patch(
+            &name,
+            &pp,
+            &Patch::Apply(ClusterRoleBinding {
+                metadata: kube::api::ObjectMeta {
+                    name: Some(name.clone()),
+                    owner_references: Some(vec![cluster_as_owner_ref.clone()]),
+                    ..Default::default()
+                },
+                role_ref: RoleRef {
+                    kind: "ClusterRole".to_string(),
+                    name: "computer".to_string(),
+                    ..Default::default()
+                },
+                subjects: Some(vec![Subject {
+                    kind: "ServiceAccount".to_string(),
+                    name: name.clone(),
+                    namespace: Some(cluster_namespace.to_string()),
+                    ..Default::default()
+                }]),
+            }),
+        )
+        .await?;
+
+    secrets
+        .patch(
+            &name,
+            &pp,
+            &Patch::Apply(Secret {
+                metadata: kube::api::ObjectMeta {
+                    name: Some(name.clone()),
+                    owner_references: Some(vec![cluster_as_owner_ref]),
+                    annotations: Some(
+                        [(
+                            "kubernetes.io/service-account.name".to_string(),
+                            name.clone(),
+                        )]
+                        .into(),
+                    ),
+                    ..Default::default()
+                },
+                type_: Some("kubernetes.io/service-account-token".to_string()),
+                ..Default::default()
+            }),
+        )
+        .await?;
+
+    Ok(())
 }
 
 async fn compute_cluster_diff_and_set_statuses(
@@ -115,4 +207,17 @@ async fn compute_cluster_diff_and_set_statuses(
 
 pub fn error_policy(_object: Arc<Cluster>, _error: &Error, _context: Arc<ReconcilerCtx>) -> Action {
     Action::requeue(Duration::from_secs(10))
+}
+
+fn owner_ref_from_object_ref(object_ref: &ObjectReference) -> Result<OwnerReference> {
+    Ok(OwnerReference {
+        api_version: object_ref
+            .api_version
+            .clone()
+            .ok_or_else(|| Error::MissingField)?,
+        kind: object_ref.kind.clone().ok_or_else(|| Error::MissingField)?,
+        name: object_ref.name.clone().ok_or_else(|| Error::MissingField)?,
+        uid: object_ref.uid.clone().ok_or_else(|| Error::MissingField)?,
+        ..Default::default()
+    })
 }
