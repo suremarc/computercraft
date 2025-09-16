@@ -28,8 +28,8 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: computercraft-controller
   namespace: computercraft
+  name: computercraft-controller
 imagePullSecrets:
 - name: suremarc
 automountServiceAccountToken: true
@@ -50,6 +50,7 @@ rules:
   resources: ["computers/status"]
   verbs: ["update", "patch"]
 ---
+# TODO: admission controller policy to restrict service accounts to modify computers in their own cluster only
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

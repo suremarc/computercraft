@@ -9,7 +9,10 @@ pub mod reconciler;
 
 use std::sync::Arc;
 
-use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
+use k8s_openapi::{
+    api::{core::v1::ServiceAccount, rbac::v1::ClusterRoleBinding},
+    apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition,
+};
 use kube::{
     Api, CustomResourceExt,
     runtime::{Controller, watcher},
@@ -36,6 +39,8 @@ pub enum Error {
     Kube(#[from] kube::Error),
     #[error("No peers available for cluster: {0}")]
     ClusterUnavailable(#[from] SendError<Vec<Command>>),
+    #[error("Missing field in object reference")]
+    MissingField,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -50,6 +55,8 @@ pub fn rocket(client: kube::Client) -> Rocket<Build> {
 
     let clusters = Api::<Cluster>::all(client.clone());
     let computers = Api::<Computer>::all(client.clone());
+    let service_accounts = Api::<ServiceAccount>::all(client.clone());
+    let cluster_role_bindings = Api::<ClusterRoleBinding>::all(client.clone());
 
     rocket::build()
         .manage(Arc::clone(&ctx.c2_server))
@@ -58,6 +65,9 @@ pub fn rocket(client: kube::Client) -> Rocket<Build> {
                 tokio::spawn(
                     Controller::new(clusters, watcher::Config::default())
                         .owns(computers, watcher::Config::default())
+                        // TODO: use label selectors to only watch objects we care about
+                        .owns(service_accounts, watcher::Config::default())
+                        .owns(cluster_role_bindings, watcher::Config::default())
                         .shutdown_on_signal()
                         .reconcile_on(reconciler_rx)
                         .run(
