@@ -7,6 +7,7 @@ use rand::Rng;
 use rocket::{
     Data, Request, Response, Route, State,
     data::ByteUnit,
+    fairing::AdHoc,
     futures::{
         SinkExt, StreamExt,
         channel::{
@@ -30,8 +31,14 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 
-struct RednetRocketConfig {
+struct GatewayConfig {
+    #[serde(default = "default_gateway_timeout")]
+    gateway_timeout: u32,
     rednet: PathBuf,
+}
+
+fn default_gateway_timeout() -> u32 {
+    5
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -39,44 +46,12 @@ struct RednetConfig {
     routes: Vec<HttpOverRednetRoute>,
 }
 
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for RednetConfig {
-    type Error = ();
-
-    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        let rednet_rocket_config = match request.rocket().figment().extract::<RednetRocketConfig>()
-        {
-            Ok(config) => config,
-            Err(e) => {
-                rocket::config::pretty_print_error(e.clone());
-                return Outcome::Error((Status::BadGateway, ()));
-            }
-        };
-
-        let result = tokio::fs::read_to_string(rednet_rocket_config.rednet)
-            .await
-            .context("load rednet config")
-            .and_then(|data: String| {
-                serde_yaml_ng::from_str(&data).context("Failed to parse rednet config")
-            });
-
-        let rednet = match result {
-            Ok(config) => config,
-            Err(e) => {
-                rocket::error!("Failed to load rednet config: {e}");
-                return Outcome::Error((Status::BadGateway, ()));
-            }
-        };
-
-        Outcome::Success(rednet)
-    }
-}
-
 #[launch]
 async fn rocket() -> _ {
     let server = Arc::<Server>::default();
 
     rocket::build()
+        .attach(AdHoc::config::<GatewayConfig>())
         .manage(Arc::clone(&server))
         .mount("/link", routes![listen])
         .mount(
@@ -106,6 +81,32 @@ async fn rocket() -> _ {
 
 type ComputerId = String;
 
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for RednetConfig {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        let gateway_config = State::<GatewayConfig>::get(request.rocket()).unwrap();
+
+        let result = tokio::fs::read_to_string(&gateway_config.rednet)
+            .await
+            .context("load rednet config")
+            .and_then(|data: String| {
+                serde_yaml_ng::from_str(&data).context("Failed to parse rednet config")
+            });
+
+        let rednet = match result {
+            Ok(config) => config,
+            Err(e) => {
+                rocket::error!("Failed to load rednet config: {e}");
+                return Outcome::Error((Status::BadGateway, ()));
+            }
+        };
+
+        Outcome::Success(rednet)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RednetRpcMessage<T> {
     dest: RednetRpcDestination,
@@ -117,7 +118,9 @@ struct RednetRpcMessage<T> {
 struct HttpRequest {
     method: Method,
     uri: Origin<'static>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     headers: HashMap<String, Vec<String>>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     body: String,
 }
 
@@ -150,7 +153,9 @@ impl<'r> FromRequest<'r> for HttpRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct HttpResponse {
     status: Status,
+    #[serde(default)]
     headers: HashMap<String, Vec<String>>,
+    #[serde(default)]
     body: String,
 }
 
@@ -221,6 +226,8 @@ impl Handler for GatewayHandler {
         request: &'r Request<'_>,
         data: Data<'r>,
     ) -> rocket::route::Outcome<'r> {
+        let gateway_config = State::<GatewayConfig>::get(request.rocket()).unwrap();
+
         let rednet = match RednetConfig::from_request(request).await {
             Outcome::Success(cfg) => cfg,
             Outcome::Error((status, ())) => {
@@ -278,7 +285,12 @@ impl Handler for GatewayHandler {
             Ok(rx) => rx,
         };
 
-        let resp = match timeout(Duration::from_secs(5), rx).await {
+        let resp = match timeout(
+            Duration::from_secs(gateway_config.gateway_timeout as u64),
+            rx,
+        )
+        .await
+        {
             Err(_) => return Outcome::Error(Status::GatewayTimeout),
             Ok(Err(_)) => return Outcome::Error(Status::BadGateway),
             Ok(Ok(msg)) => msg,
@@ -363,6 +375,7 @@ async fn listen<'a>(
                                 }
                                 Err(e) => {
                                     rocket::error!("Failed to deserialize message: {}", e);
+                                    break;
                                 }
                             }
                         },
