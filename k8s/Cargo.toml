@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["controller", "gateway"]
+members = ["crates/*"]
 
 [workspace.dependencies]
 anyhow = "1"
