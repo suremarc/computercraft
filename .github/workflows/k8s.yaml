@@ -35,6 +35,35 @@ jobs:
     runs-on: ubuntu-latest
     permissions: 
       packages: write
+    strategy:
+      matrix:
+        target: [controller, gateway]
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: true
+
+    - name: Install doctl
+      uses: digitalocean/action-doctl@v2
+      with:
+        token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+    - name: Log in to DigitalOcean Container Registry with short-lived credentials
+      run: doctl registry login --expiry-seconds 1200
+
+    - name: Build and push controller image
+      uses: docker/build-push-action@v4
+      with:
+        file: ./k8s/_docker_/${{ matrix.target }}.dockerfile
+        context: k8s
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: registry.digitalocean.com/suremarc/computercraft-${{ matrix.target }}:${{ github.sha }},registry.digitalocean.com/suremarc/computercraft-${{ matrix.target }}:latest
+        build-args: |
+          RELEASE_BUILD=${{ github.event_name != 'pull_request' }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [ docker ]
     steps:
     - uses: actions/checkout@v5
       with:
@@ -47,19 +76,6 @@ jobs:
 
     - name: Update deployment file
       run: sed -i "s|registry.digitalocean.com/suremarc/computercraft-controller:latest|registry.digitalocean.com/suremarc/computercraft-controller:${{ github.sha }}|" _deploy_/deployment.yml
-
-    - name: Log in to DigitalOcean Container Registry with short-lived credentials
-      run: doctl registry login --expiry-seconds 1200
-
-    - name: Build and push controller image
-      uses: docker/build-push-action@v4
-      with:
-        file: ./k8s/_docker_/controller.dockerfile
-        context: k8s
-        push: ${{ github.event_name != 'pull_request' }}
-        tags: registry.digitalocean.com/suremarc/computercraft-controller:${{ github.sha }},registry.digitalocean.com/suremarc/computercraft-controller:latest
-        build-args: |
-          RELEASE_BUILD=${{ github.event_name != 'pull_request' }}
     
     - name: Save DigitalOcean kubeconfig with short-lived credentials
       run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 sms
