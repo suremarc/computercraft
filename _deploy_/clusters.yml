@@ -1,5 +1,5 @@
 apiVersion: sms.dev/v1
-kind: Cluster
+kind: ComputerCluster
 metadata:
   name: panda-cluster
   namespace: panda-cluster

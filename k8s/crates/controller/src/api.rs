@@ -6,8 +6,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(group = "sms.dev", version = "v1", kind = "Cluster", namespaced)]
-pub struct ClusterSpec {}
+#[kube(
+    group = "sms.dev",
+    version = "v1",
+    kind = "ComputerCluster",
+    namespaced
+)]
+pub struct ComputerClusterSpec {}
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(group = "sms.dev", version = "v1", kind = "Computer", namespaced)]
@@ -55,6 +60,7 @@ pub struct ComputerGatewaySpec {
     group = "sms.dev",
     version = "v1",
     kind = "HTTPOverRednetRoute",
+    root = "HttpOverRednetRoute",
     namespaced
 )]
 pub struct HttpOverRednetRouteSpec {

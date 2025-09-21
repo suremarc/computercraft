@@ -16,22 +16,23 @@ use serde_json::json;
 use tracing::{Level, instrument};
 
 use crate::{
-    Error, Result,
-    api::{Cluster, Computer},
-    c2::{C2Server, Command},
+    Error, GatewayCommand, Result,
+    api::{Computer, ComputerCluster},
 };
 
 const MANAGER_NAME: &str = "computercraft-controller";
 
 pub struct ReconcilerCtx {
     pub client: Client,
-    pub c2_server: Arc<C2Server>,
 }
 
 #[instrument(level = Level::DEBUG, skip(context))]
-pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Result<Action> {
+pub async fn reconcile(
+    cluster: Arc<ComputerCluster>,
+    context: Arc<ReconcilerCtx>,
+) -> Result<Action> {
     let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
-    let cluster_name = cluster.metadata.name.as_deref().unwrap();
+    let _cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     create_cluster_rbac(&context.client, cluster.as_ref()).await?;
 
@@ -43,10 +44,11 @@ pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Re
         return Ok(Action::requeue(Duration::from_secs(300)));
     }
 
-    context
-        .c2_server
-        .sender(cluster_namespace, cluster_name)
-        .send(commands)?;
+    // TODO: send commands to new gateway
+    // context
+    //     .c2_server
+    //     .sender(cluster_namespace, cluster_name)
+    //     .send(commands)?;
 
     // Check again in 10 seconds
     Ok(Action::requeue(Duration::from_secs(10)))
@@ -54,7 +56,7 @@ pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Re
 
 /// Create a service account for computers in this cluster if it doesn't already exist
 #[instrument(level = Level::DEBUG, skip(client))]
-async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
+async fn create_cluster_rbac(client: &Client, cluster: &ComputerCluster) -> Result<()> {
     let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
     let cluster_name = cluster.metadata.name.as_deref().unwrap();
 
@@ -165,8 +167,8 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
 
 async fn compute_cluster_diff_and_set_statuses(
     computers: &Api<Computer>,
-    cluster: &Cluster,
-) -> Result<Vec<Command>> {
+    cluster: &ComputerCluster,
+) -> Result<Vec<GatewayCommand>> {
     let cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     // List all computers belonging to this cluster
@@ -196,7 +198,7 @@ async fn compute_cluster_diff_and_set_statuses(
         }
 
         if computer.status.as_ref().map(|stat| &stat.state) != Some(&computer.spec.state) {
-            commands.push(Command::Wake {
+            commands.push(GatewayCommand::Wake {
                 computer_id: computer.spec.id.clone(),
             });
             continue;
@@ -223,7 +225,7 @@ async fn compute_cluster_diff_and_set_statuses(
                     .await?;
 
                 if !is_online {
-                    commands.push(Command::Wake {
+                    commands.push(GatewayCommand::Wake {
                         computer_id: computer.spec.id.clone(),
                     });
                 }
@@ -234,7 +236,11 @@ async fn compute_cluster_diff_and_set_statuses(
     Ok(commands)
 }
 
-pub fn error_policy(_object: Arc<Cluster>, _error: &Error, _context: Arc<ReconcilerCtx>) -> Action {
+pub fn error_policy(
+    _object: Arc<ComputerCluster>,
+    _error: &Error,
+    _context: Arc<ReconcilerCtx>,
+) -> Action {
     Action::requeue(Duration::from_secs(10))
 }
 
