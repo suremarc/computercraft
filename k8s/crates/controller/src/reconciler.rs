@@ -127,8 +127,8 @@ async fn create_cluster_rbac(client: &Client, cluster: &ComputerCluster) -> Resu
                     ..Default::default()
                 },
                 role_ref: RoleRef {
-                    kind: "ClusterRole".to_string(),
-                    name: "computer".to_string(),
+                    kind: "Role".to_string(),
+                    name: Some(name.clone()),
                     ..Default::default()
                 },
                 subjects: Some(vec![Subject {
