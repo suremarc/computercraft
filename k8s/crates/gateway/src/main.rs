@@ -202,9 +202,10 @@ struct HttpOverRednetRoute {
 
 impl HttpOverRednetRoute {
     fn check(&self, req: &HttpRequest) -> bool {
-        req.uri
-            .path()
-            .starts_with(self.prefix.to_str().unwrap_or(""))
+        match self.prefix.to_str() {
+            Some(prefix_str) => req.uri.path().starts_with(prefix_str),
+            None => false,
+        }
     }
 }
 

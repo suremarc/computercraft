@@ -24,4 +24,4 @@ WORKDIR /opt/computercraft
 
 COPY --from=builder /tmp/computercraft/target/*/controller ./bin/
 
-ENTRYPOINT ["/opt/computercraft/bin/controller", "controller"]
+ENTRYPOINT ["/opt/computercraft/bin/controller", "reconcile"]
