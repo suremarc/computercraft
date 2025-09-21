@@ -22,6 +22,6 @@ RUN cargo build ${RELEASE_BUILD:+--release}
 FROM debian:bookworm
 WORKDIR /opt/computercraft
 
-COPY --from=builder /tmp/computercraft/target/*/controller ./bin/
+COPY --from=builder /tmp/computercraft/target/*/gateway ./bin/
 
-ENTRYPOINT ["/opt/computercraft/bin/controller"]
+ENTRYPOINT ["/opt/computercraft/bin/gateway"]
