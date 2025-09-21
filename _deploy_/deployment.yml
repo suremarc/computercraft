@@ -53,7 +53,7 @@ rules:
   resources: ["clusterrolebindings"]
   verbs: ["get", "list", "watch", "create", "update", "patch"]
 - apiGroups: ["sms.dev"]
-  resources: ["computers"]
+  resources: ["computerclusters", "computers"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["sms.dev"]
   resources: ["computers/status"]
