@@ -1,7 +1,7 @@
 name: Controller PR Checks
 on:
   pull_request:
-    paths: [ controller/**, .github/workflows/controller.yaml, _deploy_/** ]
+    paths: [ k8s/**, .github/workflows/k8s.yaml, _deploy_/** ]
   push:
     branches: [ master ]
 
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./controller
+        working-directory: ./k8s
     strategy:
       matrix:
         target: [fmt, clippy, test]
@@ -51,10 +51,11 @@ jobs:
     - name: Log in to DigitalOcean Container Registry with short-lived credentials
       run: doctl registry login --expiry-seconds 1200
 
-    - name: Build and push Docker image
+    - name: Build and push controller image
       uses: docker/build-push-action@v4
       with:
-        context: controller
+        file: ./k8s/controller.dockerfile
+        context: k8s
         push: ${{ github.event_name != 'pull_request' }}
         tags: registry.digitalocean.com/suremarc/computercraft-controller:${{ github.sha }},registry.digitalocean.com/suremarc/computercraft-controller:latest
         build-args: |

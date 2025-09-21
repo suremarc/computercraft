@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use garde::Validate;
 use kube::CustomResource;
 use schemars::JsonSchema;
@@ -14,18 +16,8 @@ pub struct ComputerSpec {
     #[garde(skip)]
     pub id: String,
     #[garde(skip)]
-    pub kind: ComputerKind,
-    #[garde(skip)]
     #[serde(flatten)]
     pub state: ComputerInternalState,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug, Validate, Default, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ComputerKind {
-    #[default]
-    Worker,
-    Gateway,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -44,4 +36,51 @@ pub struct ComputerInternalState {
     pub label: Option<String>,
     #[garde(skip)]
     pub script: Option<String>,
+}
+
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
+#[kube(
+    group = "sms.dev",
+    version = "v1",
+    kind = "ComputerGateway",
+    namespaced
+)]
+pub struct ComputerGatewaySpec {
+    #[garde(skip)]
+    pub host_id: String,
+}
+
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
+#[kube(
+    group = "sms.dev",
+    version = "v1",
+    kind = "HTTPOverRednetRoute",
+    namespaced
+)]
+pub struct HttpOverRednetRouteSpec {
+    #[garde(skip)]
+    backend: RednetBackend,
+    #[garde(skip)]
+    prefix: PathBuf,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, Validate, JsonSchema)]
+#[serde(tag = "kind")]
+pub enum RednetBackend {
+    Anycast {
+        #[garde(skip)]
+        protocol: String,
+    },
+    Computer {
+        #[garde(skip)]
+        id: String,
+        #[garde(skip)]
+        protocol: Option<String>,
+    },
+    Hostname {
+        #[garde(skip)]
+        protocol: String,
+        #[garde(skip)]
+        host: String,
+    },
 }

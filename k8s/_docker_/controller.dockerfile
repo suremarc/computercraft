@@ -12,7 +12,7 @@ RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/ca
 
 RUN cargo binstall -y --locked sccache
 
-COPY src/ src/
+COPY crates/ crates/
 COPY ./Cargo.* .
 
 ARG RELEASE_BUILD=

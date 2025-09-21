@@ -3,13 +3,13 @@ use std::{sync::Arc, time::Duration};
 use k8s_openapi::{
     api::{
         core::v1::{ObjectReference, Secret, ServiceAccount},
-        rbac::v1::{ClusterRoleBinding, RoleRef, Subject},
+        rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
     },
     apimachinery::pkg::apis::meta::v1::OwnerReference,
 };
 use kube::{
     Api, Client, Resource,
-    api::{ListParams, Patch, PatchParams},
+    api::{ListParams, ObjectMeta, Patch, PatchParams},
     runtime::controller::Action,
 };
 use serde_json::json;
@@ -59,7 +59,8 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
     let cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     let service_accounts = Api::<ServiceAccount>::namespaced(client.clone(), cluster_namespace);
-    let cluster_role_bindings = Api::<ClusterRoleBinding>::all(client.clone()); // ClusterRoleBindings are not namespaced
+    let roles = Api::<Role>::namespaced(client.clone(), cluster_namespace);
+    let role_bindings = Api::<RoleBinding>::namespaced(client.clone(), cluster_namespace);
     let secrets = Api::<Secret>::namespaced(client.clone(), cluster_namespace);
 
     let pp = PatchParams::apply(MANAGER_NAME);
@@ -68,12 +69,40 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
 
     let cluster_as_owner_ref = owner_ref_from_object_ref(&cluster.object_ref(&()))?;
 
+    roles
+        .patch(
+            &name,
+            &pp,
+            &Patch::Apply(Role {
+                metadata: ObjectMeta {
+                    name: Some(name.clone()),
+                    owner_references: Some(vec![cluster_as_owner_ref.clone()]),
+                    ..Default::default()
+                },
+                rules: Some(vec![
+                    PolicyRule {
+                        api_groups: Some(vec!["sms.dev".to_string()]),
+                        resources: Some(vec!["computers".to_string()]),
+                        verbs: vec!["create".to_string(), "delete".to_string()],
+                        ..Default::default()
+                    },
+                    PolicyRule {
+                        api_groups: Some(vec!["sms.dev".to_string()]),
+                        resources: Some(vec!["computers/status".to_string()]),
+                        verbs: vec!["update".to_string(), "patch".to_string()],
+                        ..Default::default()
+                    },
+                ]),
+            }),
+        )
+        .await?;
+
     service_accounts
         .patch(
             &name,
             &pp,
             &Patch::Apply(ServiceAccount {
-                metadata: kube::api::ObjectMeta {
+                metadata: ObjectMeta {
                     name: Some(name.clone()),
                     owner_references: Some(vec![cluster_as_owner_ref.clone()]),
                     ..Default::default()
@@ -83,12 +112,12 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
         )
         .await?;
 
-    cluster_role_bindings
+    role_bindings
         .patch(
             &name,
             &pp,
-            &Patch::Apply(ClusterRoleBinding {
-                metadata: kube::api::ObjectMeta {
+            &Patch::Apply(RoleBinding {
+                metadata: ObjectMeta {
                     name: Some(name.clone()),
                     owner_references: Some(vec![cluster_as_owner_ref.clone()]),
                     ..Default::default()
@@ -113,7 +142,7 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
             &name,
             &pp,
             &Patch::Apply(Secret {
-                metadata: kube::api::ObjectMeta {
+                metadata: ObjectMeta {
                     name: Some(name.clone()),
                     owner_references: Some(vec![cluster_as_owner_ref]),
                     annotations: Some(
