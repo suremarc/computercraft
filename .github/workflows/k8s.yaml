@@ -59,7 +59,7 @@ jobs:
         push: ${{ github.event_name != 'pull_request' }}
         tags: registry.digitalocean.com/suremarc/computercraft-${{ matrix.target }}:${{ github.sha }},registry.digitalocean.com/suremarc/computercraft-${{ matrix.target }}:latest
         build-args: |
-          RELEASE_BUILD=${{ github.event_name != 'pull_request' }}
+          RELEASE_BUILD=${{ github.event_name != 'pull_request' && 'true' || ''}}
 
   deploy:
     runs-on: ubuntu-latest
