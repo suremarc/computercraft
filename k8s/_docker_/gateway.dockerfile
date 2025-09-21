@@ -17,7 +17,7 @@ COPY ./Cargo.* .
 
 ARG RELEASE_BUILD=
 
-RUN cargo build ${RELEASE_BUILD:+--release}
+RUN cargo build ${RELEASE_BUILD:+--release} --bin gateway
 
 FROM debian:bookworm
 WORKDIR /opt/computercraft
