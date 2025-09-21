@@ -17,6 +17,9 @@ spec:
       containers:
       - name: computercraft-controller
         image: registry.digitalocean.com/suremarc/computercraft-controller:latest
+        env:
+        - name: RUST_LOG
+          value: controller=debug,info
         resources:
           requests:
             memory: "128Mi"
@@ -50,13 +53,12 @@ rules:
   resources: ["clusterrolebindings"]
   verbs: ["get", "list", "watch", "create", "update", "patch"]
 - apiGroups: ["sms.dev"]
-  resources: ["clusters", "computers"]
+  resources: ["computers"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["sms.dev"]
   resources: ["computers/status"]
   verbs: ["update", "patch"]
 ---
-# TODO: admission controller policy to restrict service accounts to modify computers in their own cluster only
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

@@ -1,0 +1,5 @@
+routes:
+- prefix: /test
+  backend:
+    kind: anycast
+    protocol: kubelet

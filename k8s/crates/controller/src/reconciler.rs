@@ -3,35 +3,38 @@ use std::{sync::Arc, time::Duration};
 use k8s_openapi::{
     api::{
         core::v1::{ObjectReference, Secret, ServiceAccount},
-        rbac::v1::{ClusterRoleBinding, RoleRef, Subject},
+        rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
     },
     apimachinery::pkg::apis::meta::v1::OwnerReference,
 };
 use kube::{
     Api, Client, Resource,
-    api::{ListParams, Patch, PatchParams},
+    api::{ListParams, ObjectMeta, Patch, PatchParams},
     runtime::controller::Action,
 };
 use serde_json::json;
 use tracing::{Level, instrument};
 
 use crate::{
-    Error, Result,
-    api::{Cluster, Computer},
-    c2::{C2Server, Command},
+    Error, GatewayCommand, Result,
+    api::{Computer, ComputerCluster},
 };
 
 const MANAGER_NAME: &str = "computercraft-controller";
 
 pub struct ReconcilerCtx {
     pub client: Client,
-    pub c2_server: Arc<C2Server>,
 }
 
 #[instrument(level = Level::DEBUG, skip(context))]
-pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Result<Action> {
+pub async fn reconcile(
+    cluster: Arc<ComputerCluster>,
+    context: Arc<ReconcilerCtx>,
+) -> Result<Action> {
+    tracing::info!("Reconciling...");
+
     let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
-    let cluster_name = cluster.metadata.name.as_deref().unwrap();
+    let _cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     create_cluster_rbac(&context.client, cluster.as_ref()).await?;
 
@@ -43,10 +46,11 @@ pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Re
         return Ok(Action::requeue(Duration::from_secs(300)));
     }
 
-    context
-        .c2_server
-        .sender(cluster_namespace, cluster_name)
-        .send(commands)?;
+    // TODO: send commands to new gateway
+    // context
+    //     .c2_server
+    //     .sender(cluster_namespace, cluster_name)
+    //     .send(commands)?;
 
     // Check again in 10 seconds
     Ok(Action::requeue(Duration::from_secs(10)))
@@ -54,12 +58,13 @@ pub async fn reconcile(cluster: Arc<Cluster>, context: Arc<ReconcilerCtx>) -> Re
 
 /// Create a service account for computers in this cluster if it doesn't already exist
 #[instrument(level = Level::DEBUG, skip(client))]
-async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
+async fn create_cluster_rbac(client: &Client, cluster: &ComputerCluster) -> Result<()> {
     let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
     let cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     let service_accounts = Api::<ServiceAccount>::namespaced(client.clone(), cluster_namespace);
-    let cluster_role_bindings = Api::<ClusterRoleBinding>::all(client.clone()); // ClusterRoleBindings are not namespaced
+    let roles = Api::<Role>::namespaced(client.clone(), cluster_namespace);
+    let role_bindings = Api::<RoleBinding>::namespaced(client.clone(), cluster_namespace);
     let secrets = Api::<Secret>::namespaced(client.clone(), cluster_namespace);
 
     let pp = PatchParams::apply(MANAGER_NAME);
@@ -68,12 +73,40 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
 
     let cluster_as_owner_ref = owner_ref_from_object_ref(&cluster.object_ref(&()))?;
 
+    roles
+        .patch(
+            &name,
+            &pp,
+            &Patch::Apply(Role {
+                metadata: ObjectMeta {
+                    name: Some(name.clone()),
+                    owner_references: Some(vec![cluster_as_owner_ref.clone()]),
+                    ..Default::default()
+                },
+                rules: Some(vec![
+                    PolicyRule {
+                        api_groups: Some(vec!["sms.dev".to_string()]),
+                        resources: Some(vec!["computers".to_string()]),
+                        verbs: vec!["create".to_string(), "delete".to_string()],
+                        ..Default::default()
+                    },
+                    PolicyRule {
+                        api_groups: Some(vec!["sms.dev".to_string()]),
+                        resources: Some(vec!["computers/status".to_string()]),
+                        verbs: vec!["update".to_string(), "patch".to_string()],
+                        ..Default::default()
+                    },
+                ]),
+            }),
+        )
+        .await?;
+
     service_accounts
         .patch(
             &name,
             &pp,
             &Patch::Apply(ServiceAccount {
-                metadata: kube::api::ObjectMeta {
+                metadata: ObjectMeta {
                     name: Some(name.clone()),
                     owner_references: Some(vec![cluster_as_owner_ref.clone()]),
                     ..Default::default()
@@ -83,12 +116,12 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
         )
         .await?;
 
-    cluster_role_bindings
+    role_bindings
         .patch(
             &name,
             &pp,
-            &Patch::Apply(ClusterRoleBinding {
-                metadata: kube::api::ObjectMeta {
+            &Patch::Apply(RoleBinding {
+                metadata: ObjectMeta {
                     name: Some(name.clone()),
                     owner_references: Some(vec![cluster_as_owner_ref.clone()]),
                     ..Default::default()
@@ -113,7 +146,7 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
             &name,
             &pp,
             &Patch::Apply(Secret {
-                metadata: kube::api::ObjectMeta {
+                metadata: ObjectMeta {
                     name: Some(name.clone()),
                     owner_references: Some(vec![cluster_as_owner_ref]),
                     annotations: Some(
@@ -136,8 +169,8 @@ async fn create_cluster_rbac(client: &Client, cluster: &Cluster) -> Result<()> {
 
 async fn compute_cluster_diff_and_set_statuses(
     computers: &Api<Computer>,
-    cluster: &Cluster,
-) -> Result<Vec<Command>> {
+    cluster: &ComputerCluster,
+) -> Result<Vec<GatewayCommand>> {
     let cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     // List all computers belonging to this cluster
@@ -167,7 +200,7 @@ async fn compute_cluster_diff_and_set_statuses(
         }
 
         if computer.status.as_ref().map(|stat| &stat.state) != Some(&computer.spec.state) {
-            commands.push(Command::Wake {
+            commands.push(GatewayCommand::Wake {
                 computer_id: computer.spec.id.clone(),
             });
             continue;
@@ -194,7 +227,7 @@ async fn compute_cluster_diff_and_set_statuses(
                     .await?;
 
                 if !is_online {
-                    commands.push(Command::Wake {
+                    commands.push(GatewayCommand::Wake {
                         computer_id: computer.spec.id.clone(),
                     });
                 }
@@ -205,7 +238,11 @@ async fn compute_cluster_diff_and_set_statuses(
     Ok(commands)
 }
 
-pub fn error_policy(_object: Arc<Cluster>, _error: &Error, _context: Arc<ReconcilerCtx>) -> Action {
+pub fn error_policy(
+    _object: Arc<ComputerCluster>,
+    _error: &Error,
+    _context: Arc<ReconcilerCtx>,
+) -> Action {
     Action::requeue(Duration::from_secs(10))
 }
 

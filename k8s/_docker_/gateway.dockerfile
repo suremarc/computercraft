@@ -12,16 +12,16 @@ RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/ca
 
 RUN cargo binstall -y --locked sccache
 
-COPY src/ src/
+COPY crates/ crates/
 COPY ./Cargo.* .
 
 ARG RELEASE_BUILD=
 
-RUN cargo build ${RELEASE_BUILD:+--release}
+RUN cargo build ${RELEASE_BUILD:+--release} --bin gateway
 
 FROM debian:bookworm
 WORKDIR /opt/computercraft
 
-COPY --from=builder /tmp/computercraft/target/*/controller ./bin/
+COPY --from=builder /tmp/computercraft/target/*/gateway ./bin/
 
-ENTRYPOINT ["/opt/computercraft/bin/controller"]
+ENTRYPOINT ["/opt/computercraft/bin/gateway"]
