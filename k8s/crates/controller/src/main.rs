@@ -41,7 +41,13 @@ enum Crd {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::io::stderr)
+                .with_target(true)
+                .with_file(true)
+                .with_line_number(true),
+        )
         .with(EnvFilter::from_default_env())
         .try_init()?;
 

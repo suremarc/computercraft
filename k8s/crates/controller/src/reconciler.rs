@@ -31,6 +31,8 @@ pub async fn reconcile(
     cluster: Arc<ComputerCluster>,
     context: Arc<ReconcilerCtx>,
 ) -> Result<Action> {
+    tracing::info!("Reconciling...");
+
     let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
     let _cluster_name = cluster.metadata.name.as_deref().unwrap();
 

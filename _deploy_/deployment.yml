@@ -17,6 +17,9 @@ spec:
       containers:
       - name: computercraft-controller
         image: registry.digitalocean.com/suremarc/computercraft-controller:latest
+        env:
+        - name: RUST_LOG
+          value: controller=debug,info
         resources:
           requests:
             memory: "128Mi"
