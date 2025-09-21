@@ -54,7 +54,7 @@ jobs:
     - name: Build and push controller image
       uses: docker/build-push-action@v4
       with:
-        file: ./k8s/controller.dockerfile
+        file: ./k8s/_docker_/controller.dockerfile
         context: k8s
         push: ${{ github.event_name != 'pull_request' }}
         tags: registry.digitalocean.com/suremarc/computercraft-controller:${{ github.sha }},registry.digitalocean.com/suremarc/computercraft-controller:latest
