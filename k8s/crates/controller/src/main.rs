@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 use futures::StreamExt;
-use k8s_openapi::api::{core::v1::ServiceAccount, rbac::v1::ClusterRoleBinding};
 use kube::{
     Api, Client, CustomResourceExt,
     runtime::{Controller, watcher},
@@ -79,14 +78,10 @@ async fn run_controller() -> anyhow::Result<()> {
 
     let clusters = Api::<ComputerCluster>::all(client.clone());
     let computers = Api::<Computer>::all(client.clone());
-    let service_accounts = Api::<ServiceAccount>::all(client.clone());
-    let cluster_role_bindings = Api::<ClusterRoleBinding>::all(client.clone());
 
     Controller::new(clusters, watcher::Config::default())
-        .owns(computers, watcher::Config::default())
         // TODO: use label selectors to only watch objects we care about
-        .owns(service_accounts, watcher::Config::default())
-        .owns(cluster_role_bindings, watcher::Config::default())
+        .owns(computers, watcher::Config::default())
         .shutdown_on_signal()
         .run(
             reconciler::reconcile,
