@@ -2,11 +2,11 @@ use std::{sync::Arc, time::Duration};
 
 use k8s_openapi::{
     api::{
-        core::v1::{ObjectReference, Secret, ServiceAccount},
-        rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
+        apps::v1::Deployment, core::v1::{ConfigMap, ObjectReference, Secret, ServiceAccount}, rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject}
     },
     apimachinery::pkg::apis::meta::v1::OwnerReference,
 };
+use kcr_gateway_networking_k8s_io::v1::gateways::{Gateway, GatewayListeners, GatewayListenersAllowedRoutes, GatewayListenersAllowedRoutesNamespaces, GatewayListenersAllowedRoutesNamespacesFrom, GatewaySpec};
 use kube::{
     Api, Client, Resource,
     api::{ListParams, ObjectMeta, Patch, PatchParams},
@@ -17,13 +17,14 @@ use tracing::{Level, instrument};
 
 use crate::{
     Error, GatewayCommand, Result,
-    api::{Computer, ComputerCluster},
+    api::{Computer, ComputerCluster, ComputerGatewayLink},
 };
 
 const MANAGER_NAME: &str = "computercraft-controller";
 
 pub struct ReconcilerCtx {
     pub client: Client,
+    pub namespace: String,
 }
 
 #[instrument(level = Level::DEBUG, skip(context))]
@@ -34,11 +35,14 @@ pub async fn reconcile(
     tracing::info!("Reconciling...");
 
     let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
-    let _cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     create_cluster_rbac(&context.client, cluster.as_ref()).await?;
 
     let computers = Api::<Computer>::namespaced(context.client.clone(), cluster_namespace);
+
+    if let Err(e) = create_gateways(&context.client, &cluster, &context.namespace).await {
+        tracing::error!("Failed to create gateway: {:?}", e);
+    }
 
     let commands = compute_cluster_diff_and_set_statuses(&computers, cluster.as_ref()).await?;
     if commands.is_empty() {
@@ -54,6 +58,122 @@ pub async fn reconcile(
 
     // Check again in 10 seconds
     Ok(Action::requeue(Duration::from_secs(10)))
+}
+
+async fn create_gateways(client: &Client, cluster: &ComputerCluster, controller_namespace: &str) -> Result<()> {
+    let gateways = Api::<Gateway>::namespaced(client.clone(), controller_namespace);
+
+    let pp = PatchParams::apply(MANAGER_NAME);
+
+    const GATEWAY_NAME: &str = "cc-web-gateway";
+
+    gateways.patch(GATEWAY_NAME, &pp, &Patch::Apply(Gateway {
+        metadata: ObjectMeta {
+            name: Some(GATEWAY_NAME.to_string()),
+            namespace: Some(controller_namespace.to_string()),
+            ..Default::default()
+        },
+        spec: GatewaySpec {
+            gateway_class_name: "cilium".to_string(),
+            listeners: vec![
+                GatewayListeners {
+                    protocol: "HTTP".to_string(),
+                    port: 80,
+                    name: GATEWAY_NAME.to_string(),
+                    allowed_routes: Some(GatewayListenersAllowedRoutes {
+                        namespaces: Some(GatewayListenersAllowedRoutesNamespaces {
+                            from: Some(GatewayListenersAllowedRoutesNamespacesFrom::All),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }
+            ],
+            ..Default::default()
+        },
+        ..Default::default()
+    })).await?;
+
+    // Create a rednet gateway for this cluster
+
+    let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
+    let cluster_name = cluster.metadata.name.as_deref().unwrap();
+
+    let configmaps = Api::<ConfigMap>::namespaced(client.clone(), &cluster_namespace)
+    let deployments = Api::<Deployment>::namespaced(client.clone(), &cluster_namespace);
+
+    let rednet_gateway_name = format!("rednet-gateway-{}", cluster_name);
+
+    configmaps.patch(&rednet_gateway_name, &pp, &Patch::Apply(ConfigMap {
+        metadata: ObjectMeta {
+            name: Some(rednet_gateway_name.clone()),
+            namespace: Some(cluster_namespace.to_string()),
+            ..Default::default()
+        },
+        data: Some(
+            [
+                ("CLUSTER_NAMESPACE".to_string(), cluster_namespace.to_string()),
+                ("CLUSTER_NAME".to_string(), cluster_name.to_string()),
+            ]
+            .into(),
+        ),
+        ..Default::default()
+    })).await?;
+
+    deployments.patch(&rednet_gateway_name, &pp, &Patch::Apply(Deployment {
+        metadata: ObjectMeta {
+            name: Some(rednet_gateway_name.clone()),
+            namespace: Some(cluster_namespace.to_string()),
+            ..Default::default()
+        },
+        spec: Some(k8s_openapi::api::apps::v1::DeploymentSpec {
+            replicas: Some(1),
+            selector: k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector {
+                match_labels: Some(
+                    [("app".to_string(), "rednet-gateway".to_string())]
+                        .into(),
+                ),
+                ..Default::default()
+            },
+            template: k8s_openapi::api::core::v1::PodTemplateSpec {
+                metadata: Some(ObjectMeta {
+                    labels: Some(
+                        [("app".to_string(), "rednet-gateway".to_string())]
+                            .into(),
+                    ),
+                    ..Default::default()
+                }),
+                spec: Some(k8s_openapi::api::core::v1::PodSpec {
+                    service_account_name: Some(format!("computer-{}", cluster_name)),
+                    containers: vec![
+                        k8s_openapi::api::core::v1::Container {
+                            name: "rednet-gateway".to_string(),
+                            image: Some("ghcr.io/suremarc/computercraft-rednet-gateway:latest".to_string()),
+                            env: Some(vec![
+                                k8s_openapi::api::core::v1::EnvVar {
+                                    name: "CLUSTER_NAMESPACE".to_string(),
+                                    value: Some(cluster_namespace.to_string()),
+                                    ..Default::default()
+                                },
+                                k8s_openapi::api::core::v1::EnvVar {
+                                    name: "CLUSTER_NAME".to_string(),
+                                    value: Some(cluster_name.to_string()),
+                                    ..Default::default()
+                                },
+                            ]),
+                            ..Default::default()
+                        }
+                    ],
+                    ..Default::default()
+                }),
+            },
+            ..Default::default()
+        }),
+        ..Default::default()
+    })).await?;
+
+    Ok(())
 }
 
 /// Create a service account for computers in this cluster if it doesn't already exist

@@ -47,10 +47,10 @@ pub struct ComputerInternalState {
 #[kube(
     group = "sms.dev",
     version = "v1",
-    kind = "ComputerGateway",
+    kind = "ComputerGatewayLink",
     namespaced
 )]
-pub struct ComputerGatewaySpec {
+pub struct ComputerGatewayLinkSpec {
     #[garde(skip)]
     pub host_id: String,
 }

@@ -378,6 +378,7 @@ dependencies = [
  "futures",
  "garde",
  "k8s-openapi",
+ "kcr_gateway_networking_k8s_io",
  "kube",
  "schemars",
  "serde",
@@ -1397,6 +1398,19 @@ checksum = "d13f06d5326a915becaffabdfab75051b8cdc260c2a5c06c0e90226ede89a692"
 dependencies = [
  "base64",
  "chrono",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "kcr_gateway_networking_k8s_io"
+version = "2.20250917.212048"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "580109decc3189a08bb84aad4ff2ed542c1ee15b4d550ba04eec1cf5c5b30a1e"
+dependencies = [
+ "k8s-openapi",
+ "kube",
  "schemars",
  "serde",
  "serde_json",
