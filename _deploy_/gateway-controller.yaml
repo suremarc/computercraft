@@ -63,7 +63,7 @@ rules:
   verbs: ["get", "list", "watch"]
 - apiGroups: ["smcs.dev"]
   resources: ["computergateways"]
-  verbs: ["get", "list", "watch", "create", "delete"]
+  verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
