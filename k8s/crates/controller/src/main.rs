@@ -71,7 +71,10 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn run_controller(target: ReconcileTarget, controller_namespace: String) -> anyhow::Result<()> {
+async fn run_controller(
+    target: ReconcileTarget,
+    controller_namespace: String,
+) -> anyhow::Result<()> {
     let client = Client::try_default().await.expect("connect to k8s");
 
     match target {

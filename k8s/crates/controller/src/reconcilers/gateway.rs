@@ -65,13 +65,22 @@ pub fn control_loop(
 async fn reconcile(gateway: Arc<ComputerGateway>, context: Arc<ReconcilerCtx>) -> Result<Action> {
     tracing::info!("Reconciling...");
 
-    create_gateway_hub(&context.client, &gateway, context.controller_namespace.clone()).await?;
+    create_gateway_hub(
+        &context.client,
+        &gateway,
+        context.controller_namespace.clone(),
+    )
+    .await?;
 
     Ok(Action::requeue(Duration::from_secs(300)))
 }
 
 #[instrument(level = Level::DEBUG, skip(client))]
-async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway, controller_namespace: String) -> Result<()> {
+async fn create_gateway_hub(
+    client: &Client,
+    gateway: &ComputerGateway,
+    controller_namespace: String,
+) -> Result<()> {
     let gateway_namespace = gateway.metadata.namespace.as_deref().unwrap();
     let gateway_name = gateway.metadata.name.as_deref().unwrap();
 
