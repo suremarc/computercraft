@@ -6,16 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(
-    group = "sms.dev",
-    version = "v1",
-    kind = "ComputerCluster",
-    namespaced
-)]
-pub struct ComputerClusterSpec {}
-
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(group = "sms.dev", version = "v1", kind = "Computer", namespaced)]
+#[kube(group = "smcs.dev", version = "v1", kind = "Computer", namespaced)]
 #[kube(status = "ComputerStatus")]
 pub struct ComputerSpec {
     #[garde(skip)]
@@ -45,29 +36,42 @@ pub struct ComputerInternalState {
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(
-    group = "sms.dev",
+    group = "smcs.dev",
     version = "v1",
-    kind = "ComputerGatewayLink",
+    kind = "ComputerCluster",
     namespaced
 )]
-pub struct ComputerGatewayLinkSpec {
+pub struct ComputerClusterSpec {
     #[garde(skip)]
-    pub host_id: String,
+    pub gateway: Option<ComputerGatewaySpec>,
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(
-    group = "sms.dev",
+    group = "smcs.dev",
     version = "v1",
-    kind = "HTTPOverRednetRoute",
-    root = "HttpOverRednetRoute",
+    kind = "ComputerGateway",
     namespaced
 )]
-pub struct HttpOverRednetRouteSpec {
+pub struct ComputerGatewaySpec {
     #[garde(skip)]
-    backend: RednetBackend,
+    pub routes: Vec<HttpOverRednetRoute>,
     #[garde(skip)]
-    prefix: PathBuf,
+    pub links: Vec<ComputerGatewayLink>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
+pub struct ComputerGatewayLink {
+    #[garde(skip)]
+    host_id: String,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, Validate, JsonSchema)]
+pub struct HttpOverRednetRoute {
+    #[garde(skip)]
+    pub backend: RednetBackend,
+    #[garde(skip)]
+    pub prefix: PathBuf,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, Validate, JsonSchema)]
@@ -89,4 +93,9 @@ pub enum RednetBackend {
         #[garde(skip)]
         host: String,
     },
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, JsonSchema)]
+pub struct RednetGatewayConfigMapData {
+    pub routes: Vec<HttpOverRednetRoute>,
 }

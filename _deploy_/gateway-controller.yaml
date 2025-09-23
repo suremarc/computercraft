@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cc-gateway-controller
+  namespace: computercraft
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cc-gateway-controller
+  template:
+    metadata:
+      labels:
+        app: cc-gateway-controller
+    spec:
+      serviceAccountName: cc-gateway-controller
+      containers:
+      - name: cc-gateway-controller
+        image: registry.digitalocean.com/suremarc/computercraft-controller:latest
+        args: ["reconcile", "gateways"]
+        env:
+        - name: RUST_LOG
+          value: controller=debug,info
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: computercraft
+  name: cc-gateway-controller
+imagePullSecrets:
+- name: suremarc
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  namespace: computercraft
+  name: cc-gateway-controller
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["configmaps", "deployments", "services"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["gateway.networking.k8s.io/v1"]
+  resources: ["httproutes"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["smcs.dev"]
+  resources: ["computerclusters"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["smcs.dev"]
+  resources: ["computergateways"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  namespace: computercraft
+  name: cc-gateway-controller
+roleRef:
+  apiGroup: ""
+  kind: ClusterRole
+  name: cc-gateway-controller
+subjects:
+- kind: ServiceAccount
+  namespace: computercraft
+  name: cc-gateway-controller
