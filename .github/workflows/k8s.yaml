@@ -87,7 +87,7 @@ jobs:
       run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 sms
 
     - name: Deploy to DigitalOcean Kubernetes
-      run: kubectl apply ${{ github.event_name == 'pull_request' && '--dry-run=server' || '' }} -f ${{ steps.update-deployment-files.outputs.directory}}
+      run: kubectl apply ${{ github.event_name == 'pull_request' && '--dry-run=server' || '' }} -f ${{ steps.update-deployment-files.outputs.directory }}
 
     - name: Verify deployment
       if: github.event_name != 'pull_request'
