@@ -10,9 +10,10 @@ use k8s_openapi::{
 };
 use kcr_gateway_networking_k8s_io::v1::httproutes::{
     HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs,
-    HTTPRouteRulesFilters, HTTPRouteRulesFiltersRequestRedirect,
-    HTTPRouteRulesFiltersRequestRedirectPath, HTTPRouteRulesFiltersRequestRedirectPathType,
-    HTTPRouteRulesFiltersType, HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec,
+    HTTPRouteRulesFilters,
+    HTTPRouteRulesFiltersType, HTTPRouteRulesFiltersUrlRewrite,
+    HTTPRouteRulesFiltersUrlRewritePath, HTTPRouteRulesFiltersUrlRewritePathType,
+    HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec,
 };
 use kube::{
     Api, Client, Resource,
@@ -249,21 +250,21 @@ async fn create_gateway_hub(
                             ..Default::default()
                         }]),
                         filters: Some(vec![HTTPRouteRulesFilters {
-                            r#type: HTTPRouteRulesFiltersType::RequestRedirect,
-                            request_redirect: Some(HTTPRouteRulesFiltersRequestRedirect {
-                                path: Some(HTTPRouteRulesFiltersRequestRedirectPath {
-                                    r#type: HTTPRouteRulesFiltersRequestRedirectPathType::ReplacePrefixMatch,
-                                    replace_prefix_match: Some("/".to_string()),
-                                    replace_full_path: None,
-                                }),
-                                status_code: Some(302),
-                                ..Default::default()
-                            }),
+                            r#type: HTTPRouteRulesFiltersType::UrlRewrite,
                             extension_ref: None,
                             request_header_modifier: None,
                             request_mirror: None,
                             response_header_modifier: None,
-                            url_rewrite: None,
+                            request_redirect: None,
+                            url_rewrite: Some(HTTPRouteRulesFiltersUrlRewrite {
+                                path: Some(HTTPRouteRulesFiltersUrlRewritePath {
+                                    r#type:
+                                        HTTPRouteRulesFiltersUrlRewritePathType::ReplacePrefixMatch,
+                                    replace_prefix_match: Some("/".to_string()),
+                                    replace_full_path: None,
+                                }),
+                                hostname: None,
+                            }),
                         }]),
                         backend_refs: Some(vec![HTTPRouteRulesBackendRefs {
                             name: deployment_name.clone(),
