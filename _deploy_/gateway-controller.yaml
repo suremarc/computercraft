@@ -23,6 +23,10 @@ spec:
           value: controller=debug,info
         - name: GATEWAY_IMAGE
           value: registry.digitalocean.com/suremarc/computercraft-gateway:latest
+        - name: KUBE_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         resources:
           requests:
             memory: "128Mi"
