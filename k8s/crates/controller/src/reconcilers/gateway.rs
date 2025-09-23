@@ -1,23 +1,33 @@
 use std::{sync::Arc, time::Duration};
 
 use futures::Stream;
-use k8s_openapi::{api::{apps::v1::Deployment, core::v1::{ConfigMap, Service, ServiceSpec}}, apimachinery::pkg::util::intstr::IntOrString};
+use k8s_openapi::{
+    api::{
+        apps::v1::Deployment,
+        core::v1::{ConfigMap, Service, ServiceSpec},
+    },
+    apimachinery::pkg::util::intstr::IntOrString,
+};
 use kcr_gateway_networking_k8s_io::v1::httproutes::{
-    HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs, HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec
+    HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs,
+    HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec,
 };
 use kube::{
-    Api, Client, Resource, api::{ObjectMeta, Patch, PatchParams}, runtime::{
+    Api, Client, Resource,
+    api::{ObjectMeta, Patch, PatchParams},
+    runtime::{
         Controller,
         controller::{Action, Error as ControllerError},
         reflector::ObjectRef,
         watcher,
-    }
+    },
 };
 use tracing::{Level, instrument};
 
 use crate::{
     Error, Result,
-    api::{ComputerGateway, RednetGatewayConfigMapData}, reconcilers::owner_ref_from_object_ref,
+    api::{ComputerGateway, RednetGatewayConfigMapData},
+    reconcilers::owner_ref_from_object_ref,
 };
 
 const MANAGER_NAME: &str = "cc-gateway-controller";
@@ -81,7 +91,9 @@ async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Resul
                 metadata: ObjectMeta {
                     name: Some(deployment_name.clone()),
                     namespace: Some(gateway_namespace.to_string()),
-                    owner_references: Some(vec![owner_ref_from_object_ref(&gateway.object_ref(&()))?]),
+                    owner_references: Some(vec![owner_ref_from_object_ref(
+                        &gateway.object_ref(&()),
+                    )?]),
                     ..Default::default()
                 },
                 data: Some(
@@ -168,30 +180,33 @@ async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Resul
         ..Default::default()
     })).await?;
 
-    services.patch(&deployment_name, &pp, &Patch::Apply(Service {
-        metadata: ObjectMeta {
-            name: Some(deployment_name.clone()),
-            namespace: Some(gateway_namespace.to_string()),
-            owner_references: Some(vec![owner_ref_from_object_ref(&gateway.object_ref(&()))?]),
-            ..Default::default()
-        },
-        spec: Some(ServiceSpec {
-            selector: Some(
-                [("app".to_string(), deployment_name.clone())]
-                    .into(),
-            ),
-            ports: Some(vec![
-                k8s_openapi::api::core::v1::ServicePort {
-                    port: 8000,
-                    target_port: Some(IntOrString::Int(8000)),
+    services
+        .patch(
+            &deployment_name,
+            &pp,
+            &Patch::Apply(Service {
+                metadata: ObjectMeta {
+                    name: Some(deployment_name.clone()),
+                    namespace: Some(gateway_namespace.to_string()),
+                    owner_references: Some(vec![owner_ref_from_object_ref(
+                        &gateway.object_ref(&()),
+                    )?]),
                     ..Default::default()
-                }
-            ]),
-            type_: Some("ClusterIP".to_string()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    })).await?;
+                },
+                spec: Some(ServiceSpec {
+                    selector: Some([("app".to_string(), deployment_name.clone())].into()),
+                    ports: Some(vec![k8s_openapi::api::core::v1::ServicePort {
+                        port: 8000,
+                        target_port: Some(IntOrString::Int(8000)),
+                        ..Default::default()
+                    }]),
+                    type_: Some("ClusterIP".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+        )
+        .await?;
 
     routes
         .patch(
@@ -201,7 +216,9 @@ async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Resul
                 metadata: ObjectMeta {
                     name: Some(deployment_name.clone()),
                     namespace: Some(gateway_namespace.to_string()),
-                    owner_references: Some(vec![owner_ref_from_object_ref(&gateway.object_ref(&()))?]),
+                    owner_references: Some(vec![owner_ref_from_object_ref(
+                        &gateway.object_ref(&()),
+                    )?]),
                     ..Default::default()
                 },
                 spec: HTTPRouteSpec {

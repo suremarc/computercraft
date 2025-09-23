@@ -2,9 +2,9 @@ use std::{sync::Arc, time::Duration};
 
 use futures::Stream;
 use k8s_openapi::api::{
-        core::v1::{Secret, ServiceAccount},
-        rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
-    };
+    core::v1::{Secret, ServiceAccount},
+    rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
+};
 use kube::{
     Api, Client, Resource,
     api::{ListParams, ObjectMeta, Patch, PatchParams},
@@ -20,7 +20,8 @@ use tracing::{Level, instrument};
 
 use crate::{
     Error, GatewayCommand, Result,
-    api::{Computer, ComputerCluster, ComputerGateway, ComputerGatewaySpec}, reconcilers::owner_ref_from_object_ref,
+    api::{Computer, ComputerCluster, ComputerGateway, ComputerGatewaySpec},
+    reconcilers::owner_ref_from_object_ref,
 };
 
 const MANAGER_NAME: &str = "cc-cluster-controller";

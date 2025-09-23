@@ -1,4 +1,6 @@
-use k8s_openapi::{api::core::v1::ObjectReference, apimachinery::pkg::apis::meta::v1::OwnerReference};
+use k8s_openapi::{
+    api::core::v1::ObjectReference, apimachinery::pkg::apis::meta::v1::OwnerReference,
+};
 
 use super::{Error, Result};
 
