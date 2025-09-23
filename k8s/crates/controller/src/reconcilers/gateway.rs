@@ -9,10 +9,7 @@ use k8s_openapi::{
     apimachinery::pkg::util::intstr::IntOrString,
 };
 use kcr_gateway_networking_k8s_io::v1::httproutes::{
-    HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs,
-    HTTPRouteRulesFilters, HTTPRouteRulesFiltersRequestRedirect,
-    HTTPRouteRulesFiltersRequestRedirectPath, HTTPRouteRulesFiltersRequestRedirectPathType,
-    HTTPRouteRulesFiltersType, HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec,
+    HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs, HTTPRouteRulesBackendRefsFilters, HTTPRouteRulesBackendRefsFiltersRequestRedirect, HTTPRouteRulesBackendRefsFiltersRequestRedirectPath, HTTPRouteRulesBackendRefsFiltersRequestRedirectPathType, HTTPRouteRulesBackendRefsFiltersType, HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec
 };
 use kube::{
     Api, Client, Resource,
@@ -248,26 +245,26 @@ async fn create_gateway_hub(
                             }),
                             ..Default::default()
                         }]),
-                        filters: Some(vec![HTTPRouteRulesFilters {
-                            r#type: HTTPRouteRulesFiltersType::RequestRedirect,
-                            request_redirect: Some(HTTPRouteRulesFiltersRequestRedirect {
-                                path: Some(HTTPRouteRulesFiltersRequestRedirectPath {
-                                    r#type: HTTPRouteRulesFiltersRequestRedirectPathType::ReplacePrefixMatch,
-                                    replace_prefix_match: Some("/".to_string()),
-                                    replace_full_path: None,
-                                }),
-                                status_code: Some(302),
-                                ..Default::default()
-                            }),
-                            extension_ref: None,
-                            request_header_modifier: None,
-                            request_mirror: None,
-                            response_header_modifier: None,
-                            url_rewrite: None,
-                        }]),
                         backend_refs: Some(vec![HTTPRouteRulesBackendRefs {
                             name: deployment_name.clone(),
                             port: Some(8000),
+                            filters: Some(vec![HTTPRouteRulesBackendRefsFilters {
+                                r#type: HTTPRouteRulesBackendRefsFiltersType::RequestRedirect,
+                                request_redirect: Some(HTTPRouteRulesBackendRefsFiltersRequestRedirect {
+                                    path: Some(HTTPRouteRulesBackendRefsFiltersRequestRedirectPath {
+                                        r#type: HTTPRouteRulesBackendRefsFiltersRequestRedirectPathType::ReplacePrefixMatch,
+                                        replace_prefix_match: Some("/".to_string()),
+                                        replace_full_path: None,
+                                    }),
+                                    status_code: Some(302),
+                                    ..Default::default()
+                                }),
+                                extension_ref: None,
+                                request_header_modifier: None,
+                                request_mirror: None,
+                                response_header_modifier: None,
+                                url_rewrite: None,
+                            }]),
                             ..Default::default()
                         }]),
                         ..Default::default()
