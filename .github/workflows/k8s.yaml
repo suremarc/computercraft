@@ -74,7 +74,8 @@ jobs:
       with:
         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-    - name: Update deployment file
+    - name: Update deployment files
+      id: update-deployment-files
       uses: Azure/k8s-artifact-substitute@v1
       with:
         manifests: _deploy_
@@ -86,7 +87,7 @@ jobs:
       run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 sms
 
     - name: Deploy to DigitalOcean Kubernetes
-      run: kubectl apply ${{ github.event_name == 'pull_request' && '--dry-run=server' || '' }} -f _deploy_
+      run: kubectl apply ${{ github.event_name == 'pull_request' && '--dry-run=server' || '' }} -f ${{ steps.update-deployment-files.outputs.directory}}
 
     - name: Verify deployment
       if: github.event_name != 'pull_request'
