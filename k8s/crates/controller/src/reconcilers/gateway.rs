@@ -10,7 +10,9 @@ use k8s_openapi::{
 };
 use kcr_gateway_networking_k8s_io::v1::httproutes::{
     HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs,
-    HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec,
+    HTTPRouteRulesFilters, HTTPRouteRulesFiltersRequestRedirect,
+    HTTPRouteRulesFiltersRequestRedirectPath, HTTPRouteRulesFiltersRequestRedirectPathType,
+    HTTPRouteRulesFiltersType, HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec,
 };
 use kube::{
     Api, Client, Resource,
@@ -245,6 +247,23 @@ async fn create_gateway_hub(
                                 ..Default::default()
                             }),
                             ..Default::default()
+                        }]),
+                        filters: Some(vec![HTTPRouteRulesFilters {
+                            r#type: HTTPRouteRulesFiltersType::RequestRedirect,
+                            request_redirect: Some(HTTPRouteRulesFiltersRequestRedirect {
+                                path: Some(HTTPRouteRulesFiltersRequestRedirectPath {
+                                    r#type: HTTPRouteRulesFiltersRequestRedirectPathType::ReplacePrefixMatch,
+                                    replace_prefix_match: Some("/".to_string()),
+                                    replace_full_path: None,
+                                }),
+                                status_code: Some(302),
+                                ..Default::default()
+                            }),
+                            extension_ref: None,
+                            request_header_modifier: None,
+                            request_mirror: None,
+                            response_header_modifier: None,
+                            url_rewrite: None,
                         }]),
                         backend_refs: Some(vec![HTTPRouteRulesBackendRefs {
                             name: deployment_name.clone(),
