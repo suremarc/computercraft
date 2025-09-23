@@ -75,7 +75,7 @@ pub struct HttpOverRednetRoute {
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, Validate, JsonSchema)]
-#[serde(tag = "kind")]
+#[serde(rename_all = "camelCase")]
 pub enum RednetBackend {
     Anycast {
         #[garde(skip)]
