@@ -10,8 +10,7 @@ use k8s_openapi::{
 };
 use kcr_gateway_networking_k8s_io::v1::httproutes::{
     HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs,
-    HTTPRouteRulesFilters,
-    HTTPRouteRulesFiltersType, HTTPRouteRulesFiltersUrlRewrite,
+    HTTPRouteRulesFilters, HTTPRouteRulesFiltersType, HTTPRouteRulesFiltersUrlRewrite,
     HTTPRouteRulesFiltersUrlRewritePath, HTTPRouteRulesFiltersUrlRewritePathType,
     HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec,
 };
