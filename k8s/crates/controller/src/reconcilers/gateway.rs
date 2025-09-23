@@ -9,7 +9,11 @@ use k8s_openapi::{
     apimachinery::pkg::util::intstr::IntOrString,
 };
 use kcr_gateway_networking_k8s_io::v1::httproutes::{
-    HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs, HTTPRouteRulesBackendRefsFilters, HTTPRouteRulesBackendRefsFiltersRequestRedirect, HTTPRouteRulesBackendRefsFiltersRequestRedirectPath, HTTPRouteRulesBackendRefsFiltersRequestRedirectPathType, HTTPRouteRulesBackendRefsFiltersType, HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec
+    HTTPRoute, HTTPRouteParentRefs, HTTPRouteRules, HTTPRouteRulesBackendRefs,
+    HTTPRouteRulesBackendRefsFilters, HTTPRouteRulesBackendRefsFiltersRequestRedirect,
+    HTTPRouteRulesBackendRefsFiltersRequestRedirectPath,
+    HTTPRouteRulesBackendRefsFiltersRequestRedirectPathType, HTTPRouteRulesBackendRefsFiltersType,
+    HTTPRouteRulesMatches, HTTPRouteRulesMatchesPath, HTTPRouteSpec,
 };
 use kube::{
     Api, Client, Resource,
