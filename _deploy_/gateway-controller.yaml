@@ -21,6 +21,8 @@ spec:
         env:
         - name: RUST_LOG
           value: controller=debug,info
+        - name: GATEWAY_IMAGE
+          value: registry.digitalocean.com/suremarc/computercraft-gateway:latest
         resources:
           requests:
             memory: "128Mi"

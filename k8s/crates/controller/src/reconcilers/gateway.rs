@@ -127,7 +127,7 @@ async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Resul
                 ..Default::default()
             },
             template: k8s_openapi::api::core::v1::PodTemplateSpec {
-                            image: Some(std::env::var("GATEWAY_IMAGE").unwrap_or_else(|_| "registry.digitalocean.com/suremarc/computercraft-gateway:latest".to_string())),
+                metadata: Some(ObjectMeta {
                     labels: Some(
                         [("app".to_string(), deployment_name.clone())]
                             .into(),
@@ -139,7 +139,7 @@ async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Resul
                         k8s_openapi::api::core::v1::Container {
                             name: "rednet-gateway".to_string(),
                             // TODO: use correct version
-                            image: Some("registry.digitalocean.com/suremarc/computercraft-gateway:latest".to_string()),
+                            image: Some(std::env::var("GATEWAY_IMAGE").unwrap_or_else(|_| "registry.digitalocean.com/suremarc/computercraft-gateway:latest".to_string())),
                             env: Some(vec![
                                 k8s_openapi::api::core::v1::EnvVar {
                                     name: "RUST_LOG".to_string(),
