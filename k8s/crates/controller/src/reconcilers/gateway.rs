@@ -238,6 +238,7 @@ async fn create_gateway_hub(
                         section_name: Some("cc-web-gateway".to_string()),
                         ..Default::default()
                     }]),
+                    hostnames: Some(vec!["smcs.dev".to_string()]),
                     rules: Some(vec![HTTPRouteRules {
                         matches: Some(vec![HTTPRouteRulesMatches {
                             path: Some(HTTPRouteRulesMatchesPath {
@@ -253,7 +254,6 @@ async fn create_gateway_hub(
                         }]),
                         ..Default::default()
                     }]),
-                    ..Default::default()
                 },
                 ..Default::default()
             }),
