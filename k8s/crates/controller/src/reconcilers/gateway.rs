@@ -221,7 +221,8 @@ async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Resul
                 },
                 spec: HTTPRouteSpec {
                     parent_refs: Some(vec![HTTPRouteParentRefs {
-                        name: "cc-gateway".to_string(),
+                        name: "cc-web-gateway".to_string(),
+                        section_name: Some("cc-web-gateway".to_string()),
                         ..Default::default()
                     }]),
                     rules: Some(vec![HTTPRouteRules {
