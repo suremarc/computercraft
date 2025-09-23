@@ -146,13 +146,13 @@ async fn create_cluster_rbac(client: &Client, cluster: &ComputerCluster) -> Resu
                 },
                 rules: Some(vec![
                     PolicyRule {
-                        api_groups: Some(vec!["sms.dev".to_string()]),
+                        api_groups: Some(vec!["smcs.dev".to_string()]),
                         resources: Some(vec!["computers".to_string()]),
                         verbs: vec!["create".to_string(), "delete".to_string()],
                         ..Default::default()
                     },
                     PolicyRule {
-                        api_groups: Some(vec!["sms.dev".to_string()]),
+                        api_groups: Some(vec!["smcs.dev".to_string()]),
                         resources: Some(vec!["computers/status".to_string()]),
                         verbs: vec!["update".to_string(), "patch".to_string()],
                         ..Default::default()
