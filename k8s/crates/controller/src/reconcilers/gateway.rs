@@ -62,7 +62,7 @@ pub fn control_loop(
 async fn reconcile(gateway: Arc<ComputerGateway>, context: Arc<ReconcilerCtx>) -> Result<Action> {
     tracing::info!("Reconciling...");
 
-    create_gateway_hub(&context.client, &gateway)?;
+    create_gateway_hub(&context.client, &gateway).await?;
 
     Ok(Action::requeue(Duration::from_secs(300)))
 }
