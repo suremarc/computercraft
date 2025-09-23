@@ -34,10 +34,12 @@ const MANAGER_NAME: &str = "cc-gateway-controller";
 
 struct ReconcilerCtx {
     client: Client,
+    controller_namespace: String,
 }
 
 pub fn control_loop(
     client: Client,
+    controller_namespace: String,
 ) -> impl Stream<
     Item = Result<(ObjectRef<ComputerGateway>, Action), ControllerError<Error, watcher::Error>>,
 > {
@@ -48,6 +50,7 @@ pub fn control_loop(
 
     let context = Arc::new(ReconcilerCtx {
         client: client.clone(),
+        controller_namespace,
     });
 
     Controller::new(gateways, watcher::Config::default())
@@ -62,13 +65,13 @@ pub fn control_loop(
 async fn reconcile(gateway: Arc<ComputerGateway>, context: Arc<ReconcilerCtx>) -> Result<Action> {
     tracing::info!("Reconciling...");
 
-    create_gateway_hub(&context.client, &gateway).await?;
+    create_gateway_hub(&context.client, &gateway, context.controller_namespace.clone()).await?;
 
     Ok(Action::requeue(Duration::from_secs(300)))
 }
 
 #[instrument(level = Level::DEBUG, skip(client))]
-async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Result<()> {
+async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway, controller_namespace: String) -> Result<()> {
     let gateway_namespace = gateway.metadata.namespace.as_deref().unwrap();
     let gateway_name = gateway.metadata.name.as_deref().unwrap();
 
@@ -222,6 +225,7 @@ async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Resul
                 spec: HTTPRouteSpec {
                     parent_refs: Some(vec![HTTPRouteParentRefs {
                         name: "cc-web-gateway".to_string(),
+                        namespace: Some(controller_namespace.clone()),
                         section_name: Some("cc-web-gateway".to_string()),
                         ..Default::default()
                     }]),

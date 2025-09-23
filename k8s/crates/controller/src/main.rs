@@ -11,6 +11,8 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 #[derive(Debug, Clone, Parser)]
 #[command(version, about)]
 struct Cli {
+    #[arg(short, long, env = "KUBE_NAMESPACE")]
+    namespace: String,
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -53,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = Cli::parse();
     match cli.command {
-        Some(Commands::Reconcile(target)) => run_controller(target).await?,
+        Some(Commands::Reconcile(target)) => run_controller(target, cli.namespace).await?,
         Some(Commands::CrdManifest(crd)) => {
             let crd = match crd {
                 Crd::Cluster => ComputerCluster::crd(),
@@ -69,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn run_controller(target: ReconcileTarget) -> anyhow::Result<()> {
+async fn run_controller(target: ReconcileTarget, controller_namespace: String) -> anyhow::Result<()> {
     let client = Client::try_default().await.expect("connect to k8s");
 
     match target {
@@ -84,7 +86,7 @@ async fn run_controller(target: ReconcileTarget) -> anyhow::Result<()> {
                 .await
         }
         ReconcileTarget::Gateways => {
-            reconcilers::gateway::control_loop(client)
+            reconcilers::gateway::control_loop(client, controller_namespace)
                 .for_each(|res| async move {
                     match res {
                         Ok(o) => tracing::info!("Reconciled gateway {:?}", o),
