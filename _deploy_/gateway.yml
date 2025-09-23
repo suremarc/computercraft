@@ -6,9 +6,52 @@ metadata:
 spec:
   gatewayClassName: cilium
   listeners:
-  - protocol: HTTP
-    port: 80
-    name: cc-web-gateway
+  - name: cc-web-gateway
+    protocol: HTTPS
+    port: 443
+    hostname: "smcs.dev"
     allowedRoutes:
       namespaces:
         from: All
+    tls:
+      certificateRefs:
+       - kind: Secret
+         name: gateway-tls-secret
+  - name: letsencrypt #  created for the purpose of solving HTTP-01 challenges
+    protocol: HTTP
+    port: 80
+    hostname: smcs.dev
+    allowedRoutes: 
+      namespaces:
+        from: Same
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-gateway
+spec:
+  acme:
+    email: suremarc.pm@gmail.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-gateway-account-key
+    solvers:
+      # Use the HTTP-01 challenge provider
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: cc-web-gateway
+                sectionName: letsencrypt
+                kind: Gateway
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: letsencrypt-certificate
+spec:
+  secretName: gateway-tls-secret
+  dnsNames:
+    - smcs.dev
+  issuerRef:
+    name: letsencrypt-gateway
+    kind: Issuer
