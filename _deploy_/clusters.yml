@@ -1,4 +1,4 @@
-apiVersion: sms.dev/v1
+apiVersion: smcs.dev/v1
 kind: ComputerCluster
 metadata:
   name: panda-cluster

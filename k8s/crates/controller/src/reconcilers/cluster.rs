@@ -1,44 +1,67 @@
 use std::{sync::Arc, time::Duration};
 
-use k8s_openapi::{
-    api::{
-        core::v1::{ObjectReference, Secret, ServiceAccount},
-        rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
-    },
-    apimachinery::pkg::apis::meta::v1::OwnerReference,
+use futures::Stream;
+use k8s_openapi::api::{
+    core::v1::{Secret, ServiceAccount},
+    rbac::v1::{PolicyRule, Role, RoleBinding, RoleRef, Subject},
 };
 use kube::{
     Api, Client, Resource,
     api::{ListParams, ObjectMeta, Patch, PatchParams},
-    runtime::controller::Action,
+    runtime::{
+        Controller,
+        controller::{Action, Error as ControllerError},
+        reflector::ObjectRef,
+        watcher,
+    },
 };
 use serde_json::json;
 use tracing::{Level, instrument};
 
 use crate::{
     Error, GatewayCommand, Result,
-    api::{Computer, ComputerCluster},
+    api::{Computer, ComputerCluster, ComputerGateway, ComputerGatewaySpec},
+    reconcilers::owner_ref_from_object_ref,
 };
 
-const MANAGER_NAME: &str = "computercraft-controller";
+const MANAGER_NAME: &str = "cc-cluster-controller";
 
-pub struct ReconcilerCtx {
-    pub client: Client,
+struct ReconcilerCtx {
+    client: Client,
+}
+
+pub fn control_loop(
+    client: Client,
+) -> impl Stream<
+    Item = Result<(ObjectRef<ComputerCluster>, Action), ControllerError<Error, watcher::Error>>,
+> {
+    let clusters = Api::<ComputerCluster>::all(client.clone());
+    let computers = Api::<Computer>::all(client.clone());
+
+    let context = Arc::new(ReconcilerCtx {
+        client: client.clone(),
+    });
+
+    Controller::new(clusters, watcher::Config::default())
+        // TODO: use label selectors to only watch objects we care about
+        .owns(computers, watcher::Config::default())
+        .shutdown_on_signal()
+        .run(reconcile, error_policy, context)
 }
 
 #[instrument(level = Level::DEBUG, skip(context))]
-pub async fn reconcile(
-    cluster: Arc<ComputerCluster>,
-    context: Arc<ReconcilerCtx>,
-) -> Result<Action> {
+async fn reconcile(cluster: Arc<ComputerCluster>, context: Arc<ReconcilerCtx>) -> Result<Action> {
     tracing::info!("Reconciling...");
 
     let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
-    let _cluster_name = cluster.metadata.name.as_deref().unwrap();
 
     create_cluster_rbac(&context.client, cluster.as_ref()).await?;
 
     let computers = Api::<Computer>::namespaced(context.client.clone(), cluster_namespace);
+
+    if let Err(e) = create_gateway(&context.client, &cluster).await {
+        tracing::error!("Failed to create gateway: {:?}", e);
+    }
 
     let commands = compute_cluster_diff_and_set_statuses(&computers, cluster.as_ref()).await?;
     if commands.is_empty() {
@@ -54,6 +77,44 @@ pub async fn reconcile(
 
     // Check again in 10 seconds
     Ok(Action::requeue(Duration::from_secs(10)))
+}
+
+async fn create_gateway(client: &Client, cluster: &ComputerCluster) -> Result<()> {
+    let Some(gateway) = cluster.spec.gateway.as_ref() else {
+        return Ok(());
+    };
+
+    let pp = PatchParams::apply(MANAGER_NAME);
+
+    // Create a rednet gateway for this cluster
+
+    let cluster_namespace = cluster.metadata.namespace.as_deref().unwrap();
+    let cluster_name = cluster.metadata.name.as_deref().unwrap();
+
+    let gateways = Api::<ComputerGateway>::namespaced(client.clone(), cluster_namespace);
+
+    gateways
+        .patch(
+            cluster_name,
+            &pp,
+            &Patch::Apply(ComputerGateway {
+                metadata: ObjectMeta {
+                    name: Some(cluster_name.to_string()),
+                    namespace: Some(cluster_namespace.to_string()),
+                    owner_references: Some(vec![owner_ref_from_object_ref(
+                        &cluster.object_ref(&()),
+                    )?]),
+                    ..Default::default()
+                },
+                spec: ComputerGatewaySpec {
+                    routes: gateway.routes.clone(),
+                    links: gateway.links.clone(),
+                },
+            }),
+        )
+        .await?;
+
+    Ok(())
 }
 
 /// Create a service account for computers in this cluster if it doesn't already exist
@@ -85,13 +146,13 @@ async fn create_cluster_rbac(client: &Client, cluster: &ComputerCluster) -> Resu
                 },
                 rules: Some(vec![
                     PolicyRule {
-                        api_groups: Some(vec!["sms.dev".to_string()]),
+                        api_groups: Some(vec!["smcs.dev".to_string()]),
                         resources: Some(vec!["computers".to_string()]),
                         verbs: vec!["create".to_string(), "delete".to_string()],
                         ..Default::default()
                     },
                     PolicyRule {
-                        api_groups: Some(vec!["sms.dev".to_string()]),
+                        api_groups: Some(vec!["smcs.dev".to_string()]),
                         resources: Some(vec!["computers/status".to_string()]),
                         verbs: vec!["update".to_string(), "patch".to_string()],
                         ..Default::default()
@@ -238,23 +299,10 @@ async fn compute_cluster_diff_and_set_statuses(
     Ok(commands)
 }
 
-pub fn error_policy(
+fn error_policy(
     _object: Arc<ComputerCluster>,
     _error: &Error,
     _context: Arc<ReconcilerCtx>,
 ) -> Action {
     Action::requeue(Duration::from_secs(10))
-}
-
-fn owner_ref_from_object_ref(object_ref: &ObjectReference) -> Result<OwnerReference> {
-    Ok(OwnerReference {
-        api_version: object_ref
-            .api_version
-            .clone()
-            .ok_or_else(|| Error::MissingField)?,
-        kind: object_ref.kind.clone().ok_or_else(|| Error::MissingField)?,
-        name: object_ref.name.clone().ok_or_else(|| Error::MissingField)?,
-        uid: object_ref.uid.clone().ok_or_else(|| Error::MissingField)?,
-        ..Default::default()
-    })
 }

@@ -6,16 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(
-    group = "sms.dev",
-    version = "v1",
-    kind = "ComputerCluster",
-    namespaced
-)]
-pub struct ComputerClusterSpec {}
-
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(group = "sms.dev", version = "v1", kind = "Computer", namespaced)]
+#[kube(group = "smcs.dev", version = "v1", kind = "Computer", namespaced)]
 #[kube(status = "ComputerStatus")]
 pub struct ComputerSpec {
     #[garde(skip)]
@@ -45,33 +36,46 @@ pub struct ComputerInternalState {
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
 #[kube(
-    group = "sms.dev",
+    group = "smcs.dev",
+    version = "v1",
+    kind = "ComputerCluster",
+    namespaced
+)]
+pub struct ComputerClusterSpec {
+    #[garde(skip)]
+    pub gateway: Option<ComputerGatewaySpec>,
+}
+
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
+#[kube(
+    group = "smcs.dev",
     version = "v1",
     kind = "ComputerGateway",
     namespaced
 )]
 pub struct ComputerGatewaySpec {
     #[garde(skip)]
-    pub host_id: String,
+    pub routes: Vec<HttpOverRednetRoute>,
+    #[garde(skip)]
+    pub links: Vec<ComputerGatewayLink>,
 }
 
-#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
-#[kube(
-    group = "sms.dev",
-    version = "v1",
-    kind = "HTTPOverRednetRoute",
-    root = "HttpOverRednetRoute",
-    namespaced
-)]
-pub struct HttpOverRednetRouteSpec {
+#[derive(Deserialize, Serialize, Clone, Debug, Validate, JsonSchema)]
+pub struct ComputerGatewayLink {
     #[garde(skip)]
-    backend: RednetBackend,
-    #[garde(skip)]
-    prefix: PathBuf,
+    host_id: String,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, Validate, JsonSchema)]
-#[serde(tag = "kind")]
+pub struct HttpOverRednetRoute {
+    #[garde(skip)]
+    pub backend: RednetBackend,
+    #[garde(skip)]
+    pub prefix: PathBuf,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, Validate, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub enum RednetBackend {
     Anycast {
         #[garde(skip)]
@@ -89,4 +93,9 @@ pub enum RednetBackend {
         #[garde(skip)]
         host: String,
     },
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq, Hash, JsonSchema)]
+pub struct RednetGatewayConfigMapData {
+    pub routes: Vec<HttpOverRednetRoute>,
 }

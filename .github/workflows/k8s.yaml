@@ -75,7 +75,12 @@ jobs:
         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
     - name: Update deployment file
-      run: sed -i "s|registry.digitalocean.com/suremarc/computercraft-controller:latest|registry.digitalocean.com/suremarc/computercraft-controller:${{ github.sha }}|" _deploy_/deployment.yml
+      uses: Azure/k8s-artifact-substitute@v1
+      with:
+        manifests: _deploy_
+        images: |
+          registry.digitalocean.com/suremarc/computercraft-controller:${{ github.sha }}
+          registry.digitalocean.com/suremarc/computercraft-gateway:${{ github.sha }}
     
     - name: Save DigitalOcean kubeconfig with short-lived credentials
       run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 sms
@@ -85,4 +90,6 @@ jobs:
 
     - name: Verify deployment
       if: github.event_name != 'pull_request'
-      run: kubectl rollout status deployment/computercraft-controller -n computercraft
+      run: 
+        kubectl rollout status deployment/cc-cluster-controller -n computercraft && \
+        kubectl rollout status deployment/cc-gateway-controller -n computercraft

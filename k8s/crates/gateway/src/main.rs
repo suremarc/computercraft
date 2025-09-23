@@ -178,7 +178,7 @@ impl<'r, 'o: 'r> Responder<'r, 'o> for HttpResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 enum RednetRpcDestination {
     Anycast {
         protocol: String,
