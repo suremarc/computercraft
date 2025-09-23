@@ -127,7 +127,7 @@ async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Resul
                 ..Default::default()
             },
             template: k8s_openapi::api::core::v1::PodTemplateSpec {
-                metadata: Some(ObjectMeta {
+                            image: Some(std::env::var("GATEWAY_IMAGE").unwrap_or_else(|_| "registry.digitalocean.com/suremarc/computercraft-gateway:latest".to_string())),
                     labels: Some(
                         [("app".to_string(), deployment_name.clone())]
                             .into(),
