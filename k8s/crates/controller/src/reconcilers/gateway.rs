@@ -62,14 +62,12 @@ pub fn control_loop(
 async fn reconcile(gateway: Arc<ComputerGateway>, context: Arc<ReconcilerCtx>) -> Result<Action> {
     tracing::info!("Reconciling...");
 
-    if let Err(e) = create_gateway_hub(&context.client, &gateway).await {
-        tracing::error!("Failed to create gateway: {:?}", e);
-    }
+    create_gateway_hub(&context.client, &gateway)?;
 
-    // Check again in 10 seconds
     Ok(Action::requeue(Duration::from_secs(300)))
 }
 
+#[instrument(level = Level::DEBUG, skip(client))]
 async fn create_gateway_hub(client: &Client, gateway: &ComputerGateway) -> Result<()> {
     let gateway_namespace = gateway.metadata.namespace.as_deref().unwrap();
     let gateway_name = gateway.metadata.name.as_deref().unwrap();

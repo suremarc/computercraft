@@ -3,4 +3,11 @@ kind: ComputerCluster
 metadata:
   name: panda-cluster
   namespace: panda-cluster
-spec: {}
+spec:
+  gateway:
+    routes:
+    - prefix: /test
+      backend: 
+        anycast:
+          protocol: test-protocol
+    links: []
