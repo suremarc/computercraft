@@ -51,7 +51,7 @@ jobs:
     - name: Log in to DigitalOcean Container Registry with short-lived credentials
       run: doctl registry login --expiry-seconds 1200
 
-    - name: Build and push controller image
+    - name: Build and push ${{ matrix.target }} image
       uses: docker/build-push-action@v4
       with:
         file: ./k8s/_docker_/${{ matrix.target }}.dockerfile

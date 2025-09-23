@@ -152,13 +152,13 @@ async fn create_gateway_hub(
                             image: Some(std::env::var("GATEWAY_IMAGE").unwrap_or_else(|_| "registry.digitalocean.com/suremarc/computercraft-gateway:latest".to_string())),
                             env: Some(vec![
                                 k8s_openapi::api::core::v1::EnvVar {
-                                    name: "RUST_LOG".to_string(),
-                                    value: Some(std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string())),
+                                    name: "ROCKET_REDNET".to_string(),
+                                    value: Some("/etc/config/rednet".to_string()),
                                     ..Default::default()
                                 },
                                 k8s_openapi::api::core::v1::EnvVar {
-                                    name: "ROCKET_REDNET".to_string(),
-                                    value: Some("/etc/config/rednet".to_string()),
+                                    name: "ROCKET_ADDRESS".to_string(),
+                                    value: Some("0.0.0.0".to_string()),
                                     ..Default::default()
                                 },
                             ]),
@@ -238,7 +238,6 @@ async fn create_gateway_hub(
                         section_name: Some("cc-web-gateway".to_string()),
                         ..Default::default()
                     }]),
-                    hostnames: Some(vec!["smcs.dev".to_string()]),
                     rules: Some(vec![HTTPRouteRules {
                         matches: Some(vec![HTTPRouteRulesMatches {
                             path: Some(HTTPRouteRulesMatchesPath {
@@ -254,6 +253,7 @@ async fn create_gateway_hub(
                         }]),
                         ..Default::default()
                     }]),
+                    ..Default::default()
                 },
                 ..Default::default()
             }),
