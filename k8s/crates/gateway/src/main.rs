@@ -110,6 +110,7 @@ impl<'r> FromRequest<'r> for RednetConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct RednetRpcMessage<T> {
     dest: RednetRpcDestination,
+    #[serde(rename = "requestID")]
     request_id: Uuid,
     payload: T,
 }
